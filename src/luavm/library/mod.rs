@@ -1,7 +1,8 @@
 pub mod frida;
 pub mod memory;
+pub mod runtime;
 pub mod utility;
 
-pub trait Library {
-    fn register_library(registry: &mlua::Table) -> mlua::Result<()>;
+pub trait LuaModule {
+    fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()>;
 }

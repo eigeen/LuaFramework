@@ -4,7 +4,7 @@ use std::{
     sync::{Arc, LazyLock},
 };
 
-use library::Library;
+use library::LuaModule;
 use mlua::prelude::*;
 
 use parking_lot::Mutex;
@@ -34,7 +34,7 @@ impl LuaVMManager {
     /// path: 虚拟文件路径
     pub fn create_empty_vm(&self, path: &str) -> u64 {
         let mut inner = self.inner.lock();
-        let luavm = LuaVM::new();
+        let luavm = LuaVM::new(path);
         let id = luavm.id();
 
         let virtual_path = format!("virtual:{}", path);
@@ -51,7 +51,7 @@ impl LuaVMManager {
         log::debug!("Loading script file '{}'", script_path.as_ref().display());
 
         let mut inner = self.inner.lock();
-        let mut luavm = LuaVM::new();
+        let mut luavm = LuaVM::new(script_path.as_ref().to_str().unwrap());
 
         // 加载标准库
         luavm.load_std_libs()?;
@@ -167,20 +167,26 @@ impl LuaVMManagerInner {
 
 pub struct LuaVM {
     id: u64,
+    path: String,
     lua: Lua,
 }
 
 impl LuaVM {
-    pub fn new() -> Self {
+    pub fn new(path: &str) -> Self {
         let lua = Lua::new();
         Self {
             id: rand::thread_rng().next_u64(),
+            path: path.to_string(),
             lua,
         }
     }
 
     pub fn id(&self) -> u64 {
         self.id
+    }
+
+    pub fn path(&self) -> &str {
+        &self.path
     }
 
     pub fn lua(&self) -> &Lua {
@@ -195,7 +201,17 @@ impl LuaVM {
     /// 加载 LuaFramework 自定义库
     pub fn load_luaf_libs(&mut self) -> LuaResult<()> {
         let globals = self.lua.globals();
-        library::frida::LuaFrida::register_library(&globals)?;
+
+        globals.set("_id", self.id)?;
+        globals.set("_path", self.path.clone())?;
+        if self.is_virtual() {
+            globals.set("_name", self.path.clone())?;
+        } else {
+            globals.set("_name", self.get_name())?;
+        }
+
+        library::frida::FridaModule::register_library(&self.lua, &globals)?;
+        library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
 
         Ok(())
     }
@@ -203,6 +219,18 @@ impl LuaVM {
     /// 加载脚本
     pub fn load_script(&mut self, script: &str) -> LuaResult<()> {
         self.lua.load(script).exec()
+    }
+
+    pub fn is_virtual(&self) -> bool {
+        self.path.starts_with("virtual:")
+    }
+
+    pub fn get_name(&self) -> &str {
+        if self.is_virtual() {
+            &self.path["virtual:".len()..]
+        } else {
+            &self.path
+        }
     }
 }
 
@@ -220,9 +248,15 @@ mod tests {
     fn test_luavm_load_lua() {
         init_logging();
 
-        let mut vm = LuaVM::new();
+        let mut vm = LuaVM::new("virtual:test.lua");
+        vm.load_std_libs().unwrap();
+        vm.load_luaf_libs().unwrap();
+
         let script = "print('Hello, Lua!')";
         vm.load_script(script).unwrap();
+
+        let globals = vm.lua().globals();
+        assert_eq!(globals.get::<String>("_name").unwrap(), "virtual:test.lua");
     }
 
     #[test]
@@ -230,6 +264,16 @@ mod tests {
         init_logging();
 
         let manager = LuaVMManager::instance();
+        manager.auto_load_vms("./test_files").unwrap();
+    }
+
+    #[test]
+    fn test_manager_reload() {
+        init_logging();
+
+        let manager = LuaVMManager::instance();
+        manager.auto_load_vms("./test_files").unwrap();
+        manager.remove_all_vms();
         manager.auto_load_vms("./test_files").unwrap();
     }
 }

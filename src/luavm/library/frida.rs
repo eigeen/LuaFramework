@@ -1,17 +1,17 @@
 use mlua::prelude::*;
 
-use super::Library;
+use super::LuaModule;
 
 #[derive(Default)]
-pub struct LuaFrida {}
+pub struct FridaModule {}
 
-impl LuaUserData for LuaFrida {}
+impl LuaUserData for FridaModule {}
 
-impl Library for LuaFrida {
-    fn register_library(registry: &mlua::Table) -> mlua::Result<()> {
-        registry.set("frida", LuaFrida::default())?;
+impl LuaModule for FridaModule {
+    fn register_library(_lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
+        registry.set("frida", FridaModule::default())?;
         Ok(())
     }
 }
 
-impl LuaFrida {}
+impl FridaModule {}
