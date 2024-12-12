@@ -92,28 +92,67 @@ impl LuaUserData for LuaPtr {
             Ok(Self::new(this.to_u64().wrapping_sub(other_ptr.to_u64())))
         });
 
-        methods.add_method("read_integer", |lua, this, size: u32| {
-            let ptr = this.to_usize();
-
+        methods.add_meta_method("read_integer", |lua, this, size: u32| {
             if size == 0 || size > 8 {
                 return Err(Error::InvalidValue("0 < size <= 8", size.to_string()).into_lua_error());
             }
-            let safe = RuntimeModule::is_debug_mode(lua);
-            let bytes = MemoryUtils::quick_read(ptr, size, safe).into_lua_err()?;
+            let ptr = this.to_usize();
+
+            let bytes = quick_read_bytes(lua, ptr, size).into_lua_err()?;
             let value = i64::from_le_bytes(bytes);
 
             Ok(value)
         });
-        methods.add_method("read_bytes", |lua, this, size: u32| {
-            let ptr = this.to_usize();
-
+        methods.add_meta_method("read_bytes", |lua, this, size: u32| {
             if size == 0 {
                 return Ok(vec![]);
             }
-            let safe = RuntimeModule::is_debug_mode(lua);
-            let bytes = MemoryUtils::read(ptr, size as usize, safe).into_lua_err()?;
+            let ptr = this.to_usize();
+
+            let bytes = read_bytes(lua, ptr, size).into_lua_err()?;
 
             Ok(bytes)
+        });
+        methods.add_meta_method("write_integer", |lua, this, (integer, size): (i64, u32)| {
+            if size == 0 || size > 8 {
+                return Err(Error::InvalidValue("0 < size <= 8", size.to_string()).into_lua_error());
+            }
+            let ptr = this.to_usize();
+            let buf = integer.to_le_bytes();
+
+            write_bytes(lua, ptr, &buf[..size as usize]).into_lua_err()?;
+
+            Ok(())
+        });
+        methods.add_meta_method("write_bytes", |lua, this, (buf, size): (Vec<u8>, u32)| {
+            if size == 0 || size > buf.len() as u32 {
+                return Err(
+                    Error::InvalidValue("0 < size <= buf.len()", size.to_string()).into_lua_error(),
+                );
+            }
+            let ptr = this.to_usize();
+            let write_buf = &buf[..size as usize];
+
+            write_bytes(lua, ptr, write_buf).into_lua_err()?;
+
+            Ok(())
+        });
+
+        // register read_i32, read_i64, write_i32, write_i64, and so on
+        INTEGER_TYPE_SIZE_MAP.iter().for_each(|(name, size)| {
+            methods.add_meta_method(format!("read_{}", name), |lua, this, ()| {
+                let ptr = this.to_usize();
+                let bytes = quick_read_bytes(lua, ptr, *size).into_lua_err()?;
+                let value = i64::from_le_bytes(bytes);
+                Ok(value)
+            });
+            methods.add_meta_method(format!("write_{}", name), |lua, this, integer: i64| {
+                let ptr = this.to_usize();
+
+                let bytes = integer.to_le_bytes();
+                write_bytes(lua, ptr, &bytes[..*size as usize]).into_lua_err()?;
+                Ok(())
+            });
         });
     }
 }
@@ -183,10 +222,42 @@ impl LuaPtr {
     }
 }
 
+const INTEGER_TYPE_SIZE_MAP: &[(&str, u32)] = &[
+    ("i8", 1),
+    ("u8", 1),
+    ("i16", 2),
+    ("u16", 2),
+    ("i32", 4),
+    ("u32", 4),
+    ("i64", 8),
+    ("u64", 8),
+];
+
 fn pattern_scan_all(address: usize, size: u32, pattern: &str) -> Result<Vec<usize>> {
     Ok(MemoryUtils::scan_all(address, size as usize, pattern)?)
 }
 
 fn pattern_scan_first(address: usize, size: u32, pattern: &str) -> Result<usize> {
     Ok(MemoryUtils::scan_first(address, size as usize, pattern)?)
+}
+
+fn read_bytes(lua: &Lua, address: usize, size: u32) -> Result<Vec<u8>> {
+    let safe = RuntimeModule::is_debug_mode(lua);
+    let bytes = MemoryUtils::read(address, size as usize, safe)?;
+
+    Ok(bytes)
+}
+
+fn quick_read_bytes(lua: &Lua, address: usize, size: u32) -> Result<[u8; 8]> {
+    let safe = RuntimeModule::is_debug_mode(lua);
+    let bytes = MemoryUtils::quick_read(address, size, safe)?;
+
+    Ok(bytes)
+}
+
+fn write_bytes(lua: &Lua, address: usize, bytes: &[u8]) -> Result<()> {
+    let safe = RuntimeModule::is_debug_mode(lua);
+    MemoryUtils::write(address, bytes, safe)?;
+
+    Ok(())
 }

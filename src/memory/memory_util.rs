@@ -114,6 +114,26 @@ impl MemoryUtils {
         Ok(result)
     }
 
+    /// 写入内存数据
+    pub fn write(address: usize, buf: &[u8], safe: bool) -> Result<(), MemoryError> {
+        if buf.is_empty() {
+            return Ok(());
+        }
+        if safe {
+            let permission = Self::get_page_permission(address)?;
+            if !permission.contains(MemoryPermission::WRITE) {
+                return Err(MemoryError::PermissionNoWrite(address));
+            }
+        }
+
+        let dst_ptr = address as *mut u8;
+        unsafe {
+            std::ptr::copy_nonoverlapping(buf.as_ptr(), dst_ptr, buf.len());
+        }
+
+        Ok(())
+    }
+
     /// 获取内存页权限
     pub fn get_page_permission(address: usize) -> Result<MemoryPermission, MemoryError> {
         unsafe { Ok(windows_util::get_memory_permission(address)?) }

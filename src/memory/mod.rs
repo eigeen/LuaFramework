@@ -14,6 +14,8 @@ pub enum MemoryError {
     InvalidSize(usize),
     #[error("No permission to read at 0x{0:x}")]
     PermissionNoRead(usize),
+    #[error("No permission to write at 0x{0:x}")]
+    PermissionNoWrite(usize),
 
     #[error("pattern scan error: {0}")]
     PatternScan(#[from] pattern_scan::Error),
