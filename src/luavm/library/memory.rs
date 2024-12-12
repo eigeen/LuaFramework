@@ -148,11 +148,35 @@ impl LuaUserData for LuaPtr {
             });
             methods.add_meta_method(format!("write_{}", name), |lua, this, integer: i64| {
                 let ptr = this.to_usize();
-
                 let bytes = integer.to_le_bytes();
                 write_bytes(lua, ptr, &bytes[..*size as usize]).into_lua_err()?;
                 Ok(())
             });
+        });
+
+        methods.add_meta_method("read_f32", |lua, this, ()| {
+            let ptr = this.to_usize();
+            let bytes = quick_read_bytes(lua, ptr, 4).into_lua_err()?;
+            let value = f64::from_le_bytes(bytes);
+            Ok(value)
+        });
+        methods.add_meta_method("read_f64", |lua, this, ()| {
+            let ptr = this.to_usize();
+            let bytes = quick_read_bytes(lua, ptr, 8).into_lua_err()?;
+            let value = f64::from_le_bytes(bytes);
+            Ok(value)
+        });
+        methods.add_meta_method("write_f32", |lua, this, value: f32| {
+            let ptr = this.to_usize();
+            let bytes = value.to_le_bytes();
+            write_bytes(lua, ptr, &bytes).into_lua_err()?;
+            Ok(())
+        });
+        methods.add_meta_method("write_f64", |lua, this, value: f64| {
+            let ptr = this.to_usize();
+            let bytes = value.to_le_bytes();
+            write_bytes(lua, ptr, &bytes).into_lua_err()?;
+            Ok(())
         });
     }
 }
