@@ -74,28 +74,31 @@ impl LuaVMManager {
     {
         log::debug!("Loading script file '{}'", script_path.as_ref().display());
 
-        let mut inner = self.inner.lock();
-        let mut luavm = LuaVM::new(script_path.as_ref().to_str().unwrap());
+        let luavm = LuaVM::new(script_path.as_ref().to_str().unwrap());
 
-        // 加载标准库
-        luavm.load_std_libs()?;
-        // 加载自定义库
-        luavm.load_luaf_libs()?;
-        // 加载脚本
-        let script_data = std::fs::read_to_string(&script_path).map_err(|e| {
-            Error::IoWithContext(
-                e,
-                format!(
-                    "Failed to read script file '{}'",
-                    script_path.as_ref().display()
-                ),
-            )
-        })?;
-        luavm.load_script(&script_data)?;
-
+        // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
         let luavm_shared = Arc::new(Mutex::new(luavm));
-        inner.vms.insert(id, luavm_shared.clone());
+        self.inner.lock().vms.insert(id, luavm_shared.clone());
+
+        {
+            let mut luavm = luavm_shared.lock();
+            // 加载标准库
+            luavm.load_std_libs()?;
+            // 加载自定义库
+            luavm.load_luaf_libs()?;
+            // 加载脚本
+            let script_data = std::fs::read_to_string(&script_path).map_err(|e| {
+                Error::IoWithContext(
+                    e,
+                    format!(
+                        "Failed to read script file '{}'",
+                        script_path.as_ref().display()
+                    ),
+                )
+            })?;
+            luavm.load_script(&script_data)?;
+        }
 
         Ok(luavm_shared)
     }

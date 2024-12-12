@@ -20,7 +20,7 @@ impl LuaModule for MemoryModule {
         memory.set(
             "scan",
             lua.create_function(
-                |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
+                |_, (address, size, pattern, offset): (LuaValue, usize, String, Option<i32>)| {
                     let address_ptr = LuaPtr::from_lua(address)?;
                     let address_usize = address_ptr.to_usize();
 
@@ -39,7 +39,7 @@ impl LuaModule for MemoryModule {
         memory.set(
             "scan_all",
             lua.create_function(
-                |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
+                |_, (address, size, pattern, offset): (LuaValue, usize, String, Option<i32>)| {
                     let address_ptr = LuaPtr::from_lua(address)?;
                     let address_usize = address_ptr.to_usize();
 
@@ -198,11 +198,13 @@ impl LuaPtr {
         match value {
             LuaNil => Ok(Self::new(0)),
             LuaValue::Integer(v) => {
-                if v > u32::MAX as i64 || v < 0 {
-                    return Err(
-                        Error::InvalidValue("0 < ptr < u32::MAX", v.to_string()).into_lua_error()
-                    );
-                }
+                // if v > u32::MAX as i64 || v < 0 {
+                //     return Err(
+                //         Error::InvalidValue("0 < ptr < u32::MAX", format!("0x{:x}", v))
+                //             .into_lua_error(),
+                //     );
+                // }
+                // 此处强制转换
                 Ok(Self::new(v as u64))
             }
             LuaValue::Number(v) => {
@@ -257,12 +259,12 @@ const INTEGER_TYPE_SIZE_MAP: &[(&str, u32)] = &[
     ("u64", 8),
 ];
 
-fn pattern_scan_all(address: usize, size: u32, pattern: &str) -> Result<Vec<usize>> {
-    Ok(MemoryUtils::scan_all(address, size as usize, pattern)?)
+fn pattern_scan_all(address: usize, size: usize, pattern: &str) -> Result<Vec<usize>> {
+    Ok(MemoryUtils::scan_all(address, size, pattern)?)
 }
 
-fn pattern_scan_first(address: usize, size: u32, pattern: &str) -> Result<usize> {
-    Ok(MemoryUtils::scan_first(address, size as usize, pattern)?)
+fn pattern_scan_first(address: usize, size: usize, pattern: &str) -> Result<usize> {
+    Ok(MemoryUtils::scan_first(address, size, pattern)?)
 }
 
 fn read_bytes(lua: &Lua, address: usize, size: u32) -> Result<Vec<u8>> {

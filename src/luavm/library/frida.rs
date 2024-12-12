@@ -119,6 +119,14 @@ impl LuaInterceptor {
     }
 }
 
+impl Drop for LuaInterceptor {
+    fn drop(&mut self) {
+        InterceptorDispatcher::instance()
+            .lock()
+            .remove_hook(self.handle);
+    }
+}
+
 /// Interceptor 句柄，用于获取原始信息。
 ///
 /// 由于同一个 Hook 点位可能会设置多个 Interceptor，
