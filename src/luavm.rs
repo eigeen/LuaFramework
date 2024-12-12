@@ -1,7 +1,7 @@
 use std::{
     collections::HashMap,
     path::Path,
-    sync::{Arc, LazyLock},
+    sync::{Arc, LazyLock, Weak},
 };
 
 use library::LuaModule;
@@ -15,6 +15,29 @@ use crate::error::{Error, Result};
 mod library;
 
 pub type SharedLuaVM = Arc<Mutex<LuaVM>>;
+pub type WeakLuaVM = Weak<Mutex<LuaVM>>;
+
+/// 虚拟机ID
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub struct LuaVMId(u32);
+
+impl IntoLua for LuaVMId {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        self.0.into_lua(lua)
+    }
+}
+
+impl FromLua for LuaVMId {
+    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
+        Ok(LuaVMId(u32::from_lua(value, lua)?))
+    }
+}
+
+impl LuaVMId {
+    fn new() -> Self {
+        Self(rand::thread_rng().next_u32())
+    }
+}
 
 #[derive(Default)]
 pub struct LuaVMManager {
@@ -29,22 +52,23 @@ impl LuaVMManager {
         &INSTANCE
     }
 
-    /// 创建一个新的虚拟机，返回ID
+    /// 创建一个新的虚拟机，返回副本
     ///
     /// path: 虚拟文件路径
-    pub fn create_empty_vm(&self, path: &str) -> u64 {
+    pub fn create_empty_vm(&self, path: &str) -> SharedLuaVM {
         let mut inner = self.inner.lock();
         let luavm = LuaVM::new(path);
         let id = luavm.id();
 
         let virtual_path = format!("virtual:{}", path);
-        inner.add_vm(id, &virtual_path, Arc::new(Mutex::new(luavm)));
+        let luavm_shared = Arc::new(Mutex::new(luavm));
+        inner.add_vm(id, &virtual_path, luavm_shared.clone());
 
-        id
+        luavm_shared
     }
 
-    /// 创建一个新的虚拟机并加载库和脚本，返回ID
-    pub fn create_vm_with_script<P>(&self, script_path: P) -> Result<u64>
+    /// 创建一个新的虚拟机并加载库和脚本，返回副本
+    pub fn create_vm_with_file<P>(&self, script_path: P) -> Result<SharedLuaVM>
     where
         P: AsRef<Path>,
     {
@@ -70,13 +94,14 @@ impl LuaVMManager {
         luavm.load_script(&script_data)?;
 
         let id = luavm.id();
-        inner.vms.insert(id, Arc::new(Mutex::new(luavm)));
+        let luavm_shared = Arc::new(Mutex::new(luavm));
+        inner.vms.insert(id, luavm_shared.clone());
 
-        Ok(id)
+        Ok(luavm_shared)
     }
 
     /// 获取虚拟机
-    pub fn get_vm(&self, id: u64) -> Option<Arc<Mutex<LuaVM>>> {
+    pub fn get_vm(&self, id: LuaVMId) -> Option<Arc<Mutex<LuaVM>>> {
         let inner = self.inner.lock();
         inner.vms.get(&id).cloned()
     }
@@ -90,8 +115,15 @@ impl LuaVMManager {
             .and_then(|id| inner.vms.get(id).cloned())
     }
 
+    /// 根据Lua实例获取虚拟机
+    pub fn get_vm_by_lua(&self, lua: &Lua) -> Option<Arc<Mutex<LuaVM>>> {
+        let luaid = Self::get_id_from_lua(lua).ok()?;
+        let inner = self.inner.lock();
+        inner.vms.get(&luaid).cloned()
+    }
+
     /// 扫描路径并加载所有虚拟机
-    pub fn auto_load_vms<P>(&self, dir_path: P) -> Result<Vec<u64>>
+    pub fn auto_load_vms<P>(&self, dir_path: P) -> Result<Vec<LuaVMId>>
     where
         P: AsRef<Path>,
     {
@@ -117,15 +149,15 @@ impl LuaVMManager {
                 continue;
             }
 
-            let vm_id = self.create_vm_with_script(&path)?;
-            vms.push(vm_id);
+            let vm = self.create_vm_with_file(&path)?;
+            vms.push(vm.lock().id());
         }
 
         Ok(vms)
     }
 
     /// 移除虚拟机
-    pub fn remove_vm(&self, id: u64) {
+    pub fn remove_vm(&self, id: LuaVMId) {
         let mut inner = self.inner.lock();
         inner.remove_vm(id);
     }
@@ -135,22 +167,27 @@ impl LuaVMManager {
         let mut inner = self.inner.lock();
         inner.remove_all_vms();
     }
+
+    /// 从Lua中获取虚拟机ID
+    pub fn get_id_from_lua(lua: &Lua) -> LuaResult<LuaVMId> {
+        lua.globals().get("_id")
+    }
 }
 
 #[derive(Default)]
 struct LuaVMManagerInner {
-    vms: HashMap<u64, SharedLuaVM>,
+    vms: HashMap<LuaVMId, SharedLuaVM>,
     /// 记录虚拟机脚本路径到id的映射
-    vm_paths: HashMap<String, u64>,
+    vm_paths: HashMap<String, LuaVMId>,
 }
 
 impl LuaVMManagerInner {
-    fn add_vm(&mut self, id: u64, path: &str, vm: SharedLuaVM) {
+    fn add_vm(&mut self, id: LuaVMId, path: &str, vm: SharedLuaVM) {
         self.vms.insert(id, vm);
         self.vm_paths.insert(path.to_string(), id);
     }
 
-    fn remove_vm(&mut self, id: u64) -> Option<SharedLuaVM> {
+    fn remove_vm(&mut self, id: LuaVMId) -> Option<SharedLuaVM> {
         let vm_or = self.vms.remove(&id);
         if vm_or.is_some() {
             self.vm_paths.retain(|_, v| *v != id);
@@ -166,7 +203,7 @@ impl LuaVMManagerInner {
 }
 
 pub struct LuaVM {
-    id: u64,
+    id: LuaVMId,
     path: String,
     lua: Lua,
 }
@@ -175,13 +212,13 @@ impl LuaVM {
     pub fn new(path: &str) -> Self {
         let lua = Lua::new();
         Self {
-            id: rand::thread_rng().next_u64(),
+            id: LuaVMId::new(),
             path: path.to_string(),
             lua,
         }
     }
 
-    pub fn id(&self) -> u64 {
+    pub fn id(&self) -> LuaVMId {
         self.id
     }
 
@@ -212,6 +249,7 @@ impl LuaVM {
 
         library::frida::FridaModule::register_library(&self.lua, &globals)?;
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
+        library::memory::MemoryModule::register_library(&self.lua, &globals)?;
 
         Ok(())
     }
