@@ -10,6 +10,11 @@ pub enum MemoryError {
     NotFound,
     #[error("more than one pattern found, expected exactly one")]
     MultipleMatchesFound,
+    #[error("Invalid size: {0}")]
+    InvalidSize(usize),
+    #[error("No permission to read at 0x{0:x}")]
+    PermissionNoRead(usize),
+
     #[error("pattern scan error: {0}")]
     PatternScan(#[from] pattern_scan::Error),
 

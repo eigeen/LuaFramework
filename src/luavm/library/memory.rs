@@ -2,6 +2,7 @@ use mlua::prelude::*;
 
 use crate::{
     error::{Error, Result},
+    luavm::library::runtime::RuntimeModule,
     memory::MemoryUtils,
 };
 
@@ -21,7 +22,7 @@ impl LuaModule for MemoryModule {
             lua.create_function(
                 |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
                     let address_ptr = LuaPtr::from_lua(address)?;
-                    let address_usize = address_ptr.to_u64() as usize;
+                    let address_usize = address_ptr.to_usize();
 
                     let mut result =
                         pattern_scan_first(address_usize, size, &pattern).into_lua_err()?;
@@ -29,7 +30,9 @@ impl LuaModule for MemoryModule {
                         result = (result as isize + offset as isize) as usize;
                     }
 
-                    Ok(result)
+                    let result_ptr = LuaPtr::new(result as u64);
+
+                    Ok(result_ptr)
                 },
             )?,
         )?;
@@ -38,7 +41,7 @@ impl LuaModule for MemoryModule {
             lua.create_function(
                 |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
                     let address_ptr = LuaPtr::from_lua(address)?;
-                    let address_usize = address_ptr.to_u64() as usize;
+                    let address_usize = address_ptr.to_usize();
 
                     let mut results =
                         pattern_scan_all(address_usize, size, &pattern).into_lua_err()?;
@@ -47,6 +50,11 @@ impl LuaModule for MemoryModule {
                             *ptr = (*ptr as isize + offset as isize) as usize;
                         });
                     }
+
+                    let results = results
+                        .into_iter()
+                        .map(|ptr| LuaPtr::new(ptr as u64))
+                        .collect::<Vec<_>>();
 
                     Ok(results)
                 },
@@ -83,6 +91,30 @@ impl LuaUserData for LuaPtr {
             let other_ptr = LuaPtr::from_lua(other)?;
             Ok(Self::new(this.to_u64().wrapping_sub(other_ptr.to_u64())))
         });
+
+        methods.add_method("read_integer", |lua, this, size: u32| {
+            let ptr = this.to_usize();
+
+            if size == 0 || size > 8 {
+                return Err(Error::InvalidValue("0 < size <= 8", size.to_string()).into_lua_error());
+            }
+            let safe = RuntimeModule::is_debug_mode(lua);
+            let bytes = MemoryUtils::quick_read(ptr, size, safe).into_lua_err()?;
+            let value = i64::from_le_bytes(bytes);
+
+            Ok(value)
+        });
+        methods.add_method("read_bytes", |lua, this, size: u32| {
+            let ptr = this.to_usize();
+
+            if size == 0 {
+                return Ok(vec![]);
+            }
+            let safe = RuntimeModule::is_debug_mode(lua);
+            let bytes = MemoryUtils::read(ptr, size as usize, safe).into_lua_err()?;
+
+            Ok(bytes)
+        });
     }
 }
 
@@ -93,6 +125,10 @@ impl LuaPtr {
 
     pub fn to_u64(self) -> u64 {
         self.inner
+    }
+
+    pub fn to_usize(self) -> usize {
+        self.inner as usize
     }
 
     pub fn from_lua(value: LuaValue) -> LuaResult<Self> {

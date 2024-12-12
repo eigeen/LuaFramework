@@ -44,7 +44,7 @@ impl LuaUserData for FridaModule {
                     let ptr = memory::LuaPtr::from_lua(hook_ptr)?;
 
                     let interceptor =
-                        LuaInterceptor::new_with_params(lua, ptr.to_u64() as usize, &params)?;
+                        LuaInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
                     let handle = interceptor.handle;
                     InterceptorDispatcher::instance()
                         .lock()

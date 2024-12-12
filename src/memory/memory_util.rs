@@ -1,6 +1,10 @@
 use std::{io::Cursor, slice};
 
-use super::{pattern_scan, windows_util, MemoryError};
+use super::{
+    pattern_scan,
+    windows_util::{self, MemoryPermission},
+    MemoryError,
+};
 
 pub struct MemoryUtils;
 
@@ -68,6 +72,52 @@ impl MemoryUtils {
     //         _ => Err(MemoryError::MultipleMatchesFound),
     //     }
     // }
+
+    /// 读取内存数据
+    pub fn read(address: usize, size: usize, safe: bool) -> Result<Vec<u8>, MemoryError> {
+        if size == 0 {
+            return Err(MemoryError::InvalidSize(size));
+        }
+        if safe {
+            let permission = Self::get_page_permission(address)?;
+            if !permission.contains(MemoryPermission::READ) {
+                return Err(MemoryError::PermissionNoRead(address));
+            }
+        }
+
+        let memory_slice = unsafe { slice::from_raw_parts(address as *const u8, size) };
+        Ok(memory_slice.to_vec())
+    }
+
+    /// 读取8字节以内的小内存数据
+    pub fn quick_read(address: usize, size: u32, safe: bool) -> Result<[u8; 8], MemoryError> {
+        if size == 0 || size > 8 {
+            return Err(MemoryError::InvalidSize(size as usize));
+        }
+        if safe {
+            let permission = Self::get_page_permission(address)?;
+            if !permission.contains(MemoryPermission::READ) {
+                return Err(MemoryError::PermissionNoRead(address));
+            }
+        }
+
+        let memory_slice = unsafe { slice::from_raw_parts(address as *const u8, size as usize) };
+        let mut result = [0u8; 8];
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                memory_slice.as_ptr(),
+                result.as_mut_ptr(),
+                size as usize,
+            );
+        }
+
+        Ok(result)
+    }
+
+    /// 获取内存页权限
+    pub fn get_page_permission(address: usize) -> Result<MemoryPermission, MemoryError> {
+        unsafe { Ok(windows_util::get_memory_permission(address)?) }
+    }
 }
 
 pub fn space_hex_to_bytes(text_hex: &str) -> Result<Vec<u8>, String> {
