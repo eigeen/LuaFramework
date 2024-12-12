@@ -11,6 +11,9 @@ pub enum Error {
     #[error("Hook Error: {0}")]
     Hook(#[from] mhw_toolkit::game::extra_hooks::HookError),
 
+    #[error("Memory module error: {0}")]
+    Memory(#[from] crate::memory::MemoryError),
+
     #[error("Frida Error: {0}")]
     Frida(String),
     #[error("Lua VM not found")]

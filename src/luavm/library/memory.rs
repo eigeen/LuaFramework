@@ -1,6 +1,9 @@
 use mlua::prelude::*;
 
-use crate::error::Error;
+use crate::{
+    error::{Error, Result},
+    memory::MemoryUtils,
+};
 
 use super::LuaModule;
 
@@ -12,6 +15,42 @@ impl LuaModule for MemoryModule {
         memory.set(
             "ptr",
             lua.create_function(|_, ptr: LuaValue| LuaPtr::from_lua(ptr))?,
+        )?;
+        memory.set(
+            "scan",
+            lua.create_function(
+                |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
+                    let address_ptr = LuaPtr::from_lua(address)?;
+                    let address_usize = address_ptr.to_u64() as usize;
+
+                    let mut result =
+                        pattern_scan_first(address_usize, size, &pattern).into_lua_err()?;
+                    if let Some(offset) = offset {
+                        result = (result as isize + offset as isize) as usize;
+                    }
+
+                    Ok(result)
+                },
+            )?,
+        )?;
+        memory.set(
+            "scan_all",
+            lua.create_function(
+                |_, (address, size, pattern, offset): (LuaValue, u32, String, Option<i32>)| {
+                    let address_ptr = LuaPtr::from_lua(address)?;
+                    let address_usize = address_ptr.to_u64() as usize;
+
+                    let mut results =
+                        pattern_scan_all(address_usize, size, &pattern).into_lua_err()?;
+                    if let Some(offset) = offset {
+                        results.iter_mut().for_each(|ptr| {
+                            *ptr = (*ptr as isize + offset as isize) as usize;
+                        });
+                    }
+
+                    Ok(results)
+                },
+            )?,
         )?;
 
         registry.set("Memory", memory)?;
@@ -106,4 +145,12 @@ impl LuaPtr {
             ),
         }
     }
+}
+
+fn pattern_scan_all(address: usize, size: u32, pattern: &str) -> Result<Vec<usize>> {
+    Ok(MemoryUtils::scan_all(address, size as usize, pattern)?)
+}
+
+fn pattern_scan_first(address: usize, size: u32, pattern: &str) -> Result<usize> {
+    Ok(MemoryUtils::scan_first(address, size as usize, pattern)?)
 }

@@ -11,6 +11,7 @@ static MAIN_THREAD_ONCE: Once = Once::new();
 mod error;
 mod game;
 mod luavm;
+mod memory;
 mod utility;
 
 mod logger {
