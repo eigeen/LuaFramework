@@ -27,8 +27,10 @@ static INTERCEPTOR: LazyLock<Mutex<InterceptorSend>> =
 pub struct FridaModule {}
 
 impl LuaModule for FridaModule {
-    fn register_library(_lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
+    fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
         registry.set("frida", FridaModule::default())?;
+
+        registry.set("_interceptor_handles", lua.create_table()?)?;
         Ok(())
     }
 }
@@ -51,13 +53,26 @@ impl LuaUserData for FridaModule {
                         .add_hook(interceptor)
                         .map_err(LuaError::external)?;
 
+                    // 记录句柄，以便后续移除
+                    let handle_table = lua.globals().get::<LuaTable>("_interceptor_handles")?;
+                    handle_table.push(handle)?;
+
                     Ok(handle)
                 })?,
             )?;
             interceptor_table.set(
                 "detach",
-                lua.create_function(|_lua, handle: InterceptorHandle| {
+                lua.create_function(|lua, handle: InterceptorHandle| {
                     let ok = InterceptorDispatcher::instance().lock().remove_hook(handle);
+
+                    if ok {
+                        // 移除句柄记录
+                        if let Ok(handle_table) =
+                            lua.globals().get::<LuaTable>("_interceptor_handles")
+                        {
+                            handle_table.set(handle, LuaNil)?;
+                        }
+                    }
 
                     Ok(ok)
                 })?,
@@ -68,7 +83,18 @@ impl LuaUserData for FridaModule {
     }
 }
 
-impl FridaModule {}
+impl FridaModule {
+    pub fn remove_all_hooks(lua: &Lua) -> Result<()> {
+        lua.load(
+            r#"
+for _, handle in pairs(_interceptor_handles) do
+    frida.Interceptor.detach(handle)
+end"#,
+        )
+        .exec()?;
+        Ok(())
+    }
+}
 
 /// Interceptor Lua 接口封装
 struct LuaInterceptor {
@@ -78,8 +104,6 @@ struct LuaInterceptor {
     on_enter: Option<LuaFunction>,
     on_leave: Option<LuaFunction>,
 }
-
-impl LuaUserData for LuaInterceptor {}
 
 impl LuaInterceptor {
     fn new(hook_ptr: usize, weak: WeakLuaVM) -> Self {
@@ -116,14 +140,6 @@ impl LuaInterceptor {
 
     fn set_on_leave(&mut self, func: LuaFunction) {
         self.on_leave = Some(func);
-    }
-}
-
-impl Drop for LuaInterceptor {
-    fn drop(&mut self) {
-        InterceptorDispatcher::instance()
-            .lock()
-            .remove_hook(self.handle);
     }
 }
 

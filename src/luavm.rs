@@ -211,6 +211,20 @@ pub struct LuaVM {
     lua: Lua,
 }
 
+impl Drop for LuaVM {
+    fn drop(&mut self) {
+        // Lua虚拟机移除的处理
+        // 移除frida hooks
+        log::debug!("Removing LuaVM({}) frida hooks", self.id.0);
+        let result = library::frida::FridaModule::remove_all_hooks(&self.lua);
+        if let Err(e) = result {
+            log::error!("Failed to remove LuaVM({}) frida hooks: {}", self.id.0, e);
+        }
+
+        log::debug!("LuaVM({}) removed", self.id.0);
+    }
+}
+
 impl LuaVM {
     pub fn new(path: &str) -> Self {
         let lua = Lua::new();
