@@ -59,7 +59,7 @@ impl LuaVMManager {
     /// path: 虚拟文件路径
     pub fn create_uninit_vm(&self, path: &str) -> SharedLuaVM {
         let mut inner = self.inner.lock();
-        let luavm = LuaVM::new_with_libs(path);
+        let luavm = LuaVM::new_with_libs(path).unwrap();
         let id = luavm.id();
 
         let virtual_path = format!("virtual:{}", path);
@@ -76,7 +76,7 @@ impl LuaVMManager {
     {
         log::debug!("Loading script file '{}'", script_path.as_ref().display());
 
-        let luavm = LuaVM::new_with_libs(script_path.as_ref().to_str().unwrap());
+        let luavm = LuaVM::new_with_libs(script_path.as_ref().to_str().unwrap())?;
 
         // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
@@ -84,8 +84,6 @@ impl LuaVMManager {
         self.inner.lock().vms.insert(id, luavm_shared.clone());
 
         {
-            // 加载标准库
-            luavm_shared.load_std_libs()?;
             // 加载自定义库
             luavm_shared.load_luaf_libs()?;
             // 加载脚本
@@ -230,25 +228,27 @@ impl Drop for LuaVM {
 }
 
 impl LuaVM {
-    fn new_empty(path: &str) -> Self {
-        let lua = Lua::new();
+    fn new_empty(path: &str) -> Result<Self> {
+        let lua = Lua::new_with(
+            LuaStdLib::ALL_SAFE,
+            LuaOptions::default().catch_rust_panics(true),
+        )?;
 
-        Self {
+        Ok(Self {
             id: LuaVMId::new(),
             path: path.to_string(),
             lua,
-        }
+        })
     }
 
-    pub fn new_with_libs(path: &str) -> Self {
-        let mut luavm = Self::new_empty(path);
-        luavm.load_std_libs().unwrap();
-        luavm.load_luaf_libs().unwrap();
+    pub fn new_with_libs(path: &str) -> Result<Self> {
+        let luavm = Self::new_empty(path)?;
+        luavm.load_luaf_libs()?;
         // 发布注册事件
-        let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&luavm.lua).unwrap();
+        let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&luavm.lua)?;
         crate::extension::CoreAPI::instance().dispatch_lua_state_created(lua_state_ptr);
 
-        luavm
+        Ok(luavm)
     }
 
     pub fn id(&self) -> LuaVMId {
@@ -261,11 +261,6 @@ impl LuaVM {
 
     pub fn lua(&self) -> &Lua {
         &self.lua
-    }
-
-    /// 加载Lua标准库
-    pub fn load_std_libs(&self) -> LuaResult<()> {
-        self.lua.load_std_libs(LuaStdLib::ALL_SAFE)
     }
 
     /// 加载 LuaFramework 自定义库
@@ -286,7 +281,10 @@ impl LuaVM {
 
     /// 加载脚本
     pub fn load_script(&self, script: &str) -> LuaResult<()> {
-        self.lua.load(script).exec()
+        self.lua
+            .load(script)
+            .set_name(format!("={}", self.get_name()))
+            .exec()
     }
 
     /// 是否是虚拟脚本
@@ -297,7 +295,7 @@ impl LuaVM {
     /// 获取虚拟机脚本名称
     pub fn get_name(&self) -> &str {
         if self.is_virtual() {
-            &self.path["virtual:".len()..]
+            &self.path
         } else {
             Path::new(&self.path).file_name().unwrap().to_str().unwrap()
         }
@@ -314,7 +312,7 @@ mod tests {
     fn test_luavm_load_lua() {
         init_logging();
 
-        let mut vm = LuaVM::new_with_libs("virtual:test.lua");
+        let vm = LuaVM::new_with_libs("virtual:test.lua").unwrap();
 
         let script = "print('Hello, Lua!')";
         vm.load_script(script).unwrap();

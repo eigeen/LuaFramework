@@ -9,7 +9,7 @@ crate-type = ["cdylib"]
 [dependencies]
 luaf-include = { path = "../luaf-include" }
 
-mlua = { workspace = true, features = ["luajit", "vendored", "send", "serialize"] }
+mlua = { workspace = true, features = ["send", "serialize"] }
 
 # libffi 动态调用函数
 libffi = "3.2"

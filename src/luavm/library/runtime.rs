@@ -94,7 +94,7 @@ fn error(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
 
 fn debug(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
     let args = format_args(lua, msgs)?;
-    log::debug!("[{}] {}", get_name(lua), args.join(" "));
+    log::debug!("[{}] DEBUG {}", get_name(lua), args.join(" "));
     Ok(())
 }
 

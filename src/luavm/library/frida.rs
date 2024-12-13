@@ -543,7 +543,6 @@ mod tests {
 
         let luavm_shared = LuaVMManager::instance().create_uninit_vm("test_interceptor.lua");
 
-        luavm_shared.load_std_libs().unwrap();
         luavm_shared.load_luaf_libs().unwrap();
 
         let func_ptr = test_add as usize;

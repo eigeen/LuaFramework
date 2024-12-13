@@ -10,7 +10,7 @@ resolver = "2"
 members = ["luaf-include", "luaf-libffi"]
 
     [workspace.dependencies]
-    mlua = "0.10"
+    mlua = { version = "0.10", features = ["luajit", "vendored"] }
 
 [lib]
 crate-type = ["cdylib"]
@@ -18,12 +18,7 @@ crate-type = ["cdylib"]
 [dependencies]
 luaf-include = { path = "./luaf-include" }
 
-mlua = { workspace = true, features = [
-    "luajit",
-    "vendored",
-    "send",
-    "serialize",
-] }
+mlua = { workspace = true, features = ["send", "serialize"] }
 
 mhw_toolkit = { path = "../mhw-toolkit", features = ["logger"] }
 windows = { version = "0.58", features = ["Win32_System_SystemServices"] }
