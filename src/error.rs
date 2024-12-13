@@ -10,6 +10,8 @@ pub enum Error {
     Lua(#[from] mlua::Error),
     #[error("Hook Error: {0}")]
     Hook(#[from] mhw_toolkit::game::extra_hooks::HookError),
+    #[error("Windows Error: {0}")]
+    Windows(#[from] windows::core::Error),
 
     #[error("Memory module error: {0}")]
     Memory(#[from] crate::memory::MemoryError),
@@ -22,10 +24,8 @@ pub enum Error {
     InvalidValue(&'static str, String),
     #[error("Number too large to keep precision")]
     NumberTooLarge,
-}
-
-impl Error {
-    pub fn into_lua_error(self) -> mlua::Error {
-        mlua::Error::external(self)
-    }
+    #[error("Failed to initialize core extension: code {0}")]
+    InitCoreExtension(i32),
+    #[error("Failed to parse integer from '{0}'")]
+    ParseInt(String),
 }

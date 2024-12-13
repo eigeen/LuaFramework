@@ -52,12 +52,14 @@ impl LuaVMManager {
         &INSTANCE
     }
 
-    /// 创建一个新的虚拟机，返回副本
+    /// 创建一个未加载用户脚本的虚拟机，返回副本。
+    ///
+    /// 此操作会加载默认的库。
     ///
     /// path: 虚拟文件路径
-    pub fn create_empty_vm(&self, path: &str) -> SharedLuaVM {
+    pub fn create_uninit_vm(&self, path: &str) -> SharedLuaVM {
         let mut inner = self.inner.lock();
-        let luavm = LuaVM::new(path);
+        let luavm = LuaVM::new_with_libs(path);
         let id = luavm.id();
 
         let virtual_path = format!("virtual:{}", path);
@@ -74,7 +76,7 @@ impl LuaVMManager {
     {
         log::debug!("Loading script file '{}'", script_path.as_ref().display());
 
-        let luavm = LuaVM::new(script_path.as_ref().to_str().unwrap());
+        let luavm = LuaVM::new_with_libs(script_path.as_ref().to_str().unwrap());
 
         // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
@@ -214,6 +216,9 @@ pub struct LuaVM {
 impl Drop for LuaVM {
     fn drop(&mut self) {
         // Lua虚拟机移除的处理
+        // 发布移除事件
+        let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&self.lua).unwrap();
+        crate::extension::CoreAPI::instance().dispatch_lua_state_destroyed(lua_state_ptr);
         // 移除frida hooks
         log::debug!("Removing LuaVM({}) frida hooks", self.id.0);
         let result = library::frida::FridaModule::remove_all_hooks(&self.lua);
@@ -226,13 +231,25 @@ impl Drop for LuaVM {
 }
 
 impl LuaVM {
-    pub fn new(path: &str) -> Self {
+    fn new_empty(path: &str) -> Self {
         let lua = Lua::new();
+
         Self {
             id: LuaVMId::new(),
             path: path.to_string(),
             lua,
         }
+    }
+
+    pub fn new_with_libs(path: &str) -> Self {
+        let mut luavm = Self::new_empty(path);
+        luavm.load_std_libs().unwrap();
+        luavm.load_luaf_libs().unwrap();
+        // 发布注册事件
+        let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&luavm.lua).unwrap();
+        crate::extension::CoreAPI::instance().dispatch_lua_state_created(lua_state_ptr);
+
+        luavm
     }
 
     pub fn id(&self) -> LuaVMId {
@@ -258,15 +275,12 @@ impl LuaVM {
 
         globals.set("_id", self.id)?;
         globals.set("_path", self.path.clone())?;
-        if self.is_virtual() {
-            globals.set("_name", self.path.clone())?;
-        } else {
-            globals.set("_name", self.get_name())?;
-        }
+        globals.set("_name", self.get_name())?;
 
-        library::frida::FridaModule::register_library(&self.lua, &globals)?;
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
+        library::utility::UtilityModule::register_library(&self.lua, &globals)?;
         library::memory::MemoryModule::register_library(&self.lua, &globals)?;
+        library::frida::FridaModule::register_library(&self.lua, &globals)?;
 
         Ok(())
     }
@@ -276,15 +290,17 @@ impl LuaVM {
         self.lua.load(script).exec()
     }
 
+    /// 是否是虚拟脚本
     pub fn is_virtual(&self) -> bool {
         self.path.starts_with("virtual:")
     }
 
+    /// 获取虚拟机脚本名称
     pub fn get_name(&self) -> &str {
         if self.is_virtual() {
             &self.path["virtual:".len()..]
         } else {
-            &self.path
+            Path::new(&self.path).file_name().unwrap().to_str().unwrap()
         }
     }
 }
@@ -293,19 +309,13 @@ impl LuaVM {
 mod tests {
     use super::*;
 
-    fn init_logging() {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Debug)
-            .init();
-    }
+    use crate::tests::init_logging;
 
     #[test]
     fn test_luavm_load_lua() {
         init_logging();
 
-        let mut vm = LuaVM::new("virtual:test.lua");
-        vm.load_std_libs().unwrap();
-        vm.load_luaf_libs().unwrap();
+        let mut vm = LuaVM::new_with_libs("virtual:test.lua");
 
         let script = "print('Hello, Lua!')";
         vm.load_script(script).unwrap();

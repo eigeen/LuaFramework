@@ -9,10 +9,14 @@ use windows::Win32::{
 static MAIN_THREAD_ONCE: Once = Once::new();
 
 mod error;
+mod extension;
 mod game;
 mod luavm;
 mod memory;
 mod utility;
+
+#[cfg(test)]
+mod tests;
 
 mod logger {
     use std::sync::LazyLock;
@@ -38,6 +42,9 @@ fn main_entry() -> anyhow::Result<()> {
     // 设置 panic hook
     std::panic::set_hook(Box::new(panic_hook));
 
+    // 注册扩展
+    let (total, success) = extension::CoreAPI::instance().load_core_exts()?;
+    log::info!("Loaded {total} extensions, {} failed.", total - success);
     // 初始化资源
     game::command::init_game_command()?;
 

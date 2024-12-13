@@ -1,22 +1,37 @@
 [package]
 name = "lua-framework"
-version = "1.0.0"
+version = "0.1.0"
 edition = "2021"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[workspace]
+resolver = "2"
+members = ["luaf-include", "luaf-libffi"]
+
+    [workspace.dependencies]
+    mlua = "0.10"
 
 [lib]
 crate-type = ["cdylib"]
 
 [dependencies]
-mlua = { version = "0.10", features = ["luajit", "vendored", "send", "serialize"] }
+luaf-include = { path = "./luaf-include" }
 
-mhw_toolkit = { path = "../mhw-toolkit", features = ["logger"]}
+mlua = { workspace = true, features = [
+    "luajit",
+    "vendored",
+    "send",
+    "serialize",
+] }
+
+mhw_toolkit = { path = "../mhw-toolkit", features = ["logger"] }
 windows = { version = "0.58", features = ["Win32_System_SystemServices"] }
 # frida-gum 动态Hook
-frida-gum = { version = "0.15", features = ["auto-download", "invocation-listener"] }
-# libffi 动态调用函数
-libffi = "3.2"
+frida-gum = { version = "0.15", features = [
+    "auto-download",
+    "invocation-listener",
+] }
 
 log = "0.4"
 anyhow = "1.0"

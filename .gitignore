@@ -2,3 +2,5 @@
 Cargo.lock
 /.vscode
 /test_files
+
+/lib

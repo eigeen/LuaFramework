@@ -532,21 +532,17 @@ impl InvocationListener for MyListener {
 mod tests {
     use super::*;
 
+    use crate::tests::init_logging;
+
     extern "C" fn test_add(a: i32, b: i32) -> i32 {
         a + b
-    }
-
-    fn init_logging() {
-        env_logger::builder()
-            .filter_level(log::LevelFilter::Debug)
-            .init();
     }
 
     #[test]
     fn test_interceptor() {
         init_logging();
 
-        let luavm_shared = LuaVMManager::instance().create_empty_vm("test_interceptor.lua");
+        let luavm_shared = LuaVMManager::instance().create_uninit_vm("test_interceptor.lua");
         let mut luavm = luavm_shared.lock();
 
         luavm.load_std_libs().unwrap();
