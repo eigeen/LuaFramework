@@ -78,6 +78,9 @@ impl MemoryUtils {
         if size == 0 {
             return Err(MemoryError::InvalidSize(size));
         }
+        if address == 0 {
+            return Err(MemoryError::PermissionNoRead(address));
+        }
         if safe {
             let permission = Self::get_page_permission(address)?;
             if !permission.contains(MemoryPermission::READ) {
@@ -93,6 +96,9 @@ impl MemoryUtils {
     pub fn quick_read(address: usize, size: u32, safe: bool) -> Result<[u8; 8], MemoryError> {
         if size == 0 || size > 8 {
             return Err(MemoryError::InvalidSize(size as usize));
+        }
+        if address == 0 {
+            return Err(MemoryError::PermissionNoRead(address));
         }
         if safe {
             let permission = Self::get_page_permission(address)?;
@@ -119,6 +125,9 @@ impl MemoryUtils {
         if buf.is_empty() {
             return Ok(());
         }
+        if address == 0 {
+            return Err(MemoryError::PermissionNoWrite(address));
+        }
         if safe {
             let permission = Self::get_page_permission(address)?;
             if !permission.contains(MemoryPermission::WRITE) {
@@ -137,6 +146,50 @@ impl MemoryUtils {
     /// 获取内存页权限
     pub fn get_page_permission(address: usize) -> Result<MemoryPermission, MemoryError> {
         unsafe { Ok(windows_util::get_memory_permission(address)?) }
+    }
+
+    /// 指针多级偏移计算
+    ///
+    /// 相比 CE 算法，该方法不对第一级进行取值。
+    pub fn offset_ptr<T>(base_addr: *const T, offsets: &[isize]) -> Option<*const T> {
+        let mut addr = base_addr;
+        unsafe {
+            // 先偏移再取值
+            for (idx, &offset) in offsets.iter().enumerate() {
+                addr = addr.byte_offset(offset);
+                if idx == offsets.len() - 1 {
+                    // 最后一级不取值
+                    break;
+                }
+                if addr.is_null() {
+                    return None;
+                }
+                addr = *(addr as *const *const T);
+            }
+            // 返回最后一级指针
+            Some(addr)
+        }
+    }
+
+    /// 指针多级偏移计算，与 CheatEngine 算法一致
+    pub fn offset_ptr_ce<T>(base_addr: *const T, offsets: &[isize]) -> Option<*const T> {
+        if base_addr.is_null() {
+            return None;
+        }
+        let mut addr = base_addr;
+        unsafe {
+            // 取值+偏移
+            // 取值后需要判断是否为空指针
+            for &offset in offsets.iter() {
+                let valptr = *(addr as *const *const T);
+                if valptr.is_null() {
+                    return None;
+                }
+                addr = valptr.byte_offset(offset);
+            }
+            // 返回最后一级指针
+            Some(addr)
+        }
     }
 }
 

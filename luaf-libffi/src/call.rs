@@ -83,22 +83,22 @@ impl Argument {
         }
     }
 
-    // pub fn type_name(&self) -> &'static str {
-    //     match self {
-    //         Argument::Void => "void",
-    //         Argument::UInt8(_) => "uint8",
-    //         Argument::Sint8(_) => "int8",
-    //         Argument::UInt16(_) => "uint16",
-    //         Argument::Sint16(_) => "int16",
-    //         Argument::UInt32(_) => "uint32",
-    //         Argument::Sint32(_) => "int32",
-    //         Argument::UInt64(_) => "uint64",
-    //         Argument::Sint64(_) => "int64",
-    //         Argument::Float(_) => "float",
-    //         Argument::Double(_) => "double",
-    //         Argument::Pointer(_) => "pointer",
-    //     }
-    // }
+    pub fn type_name(&self) -> &'static str {
+        match self {
+            Argument::Void => "void",
+            Argument::UInt8(_) => "uint8",
+            Argument::Sint8(_) => "int8",
+            Argument::UInt16(_) => "uint16",
+            Argument::Sint16(_) => "int16",
+            Argument::UInt32(_) => "uint32",
+            Argument::Sint32(_) => "int32",
+            Argument::UInt64(_) => "uint64",
+            Argument::Sint64(_) => "int64",
+            Argument::Float(_) => "float",
+            Argument::Double(_) => "double",
+            Argument::Pointer(_) => "pointer",
+        }
+    }
 
     pub fn from_type_name(type_name: &str) -> Option<Self> {
         match type_name {

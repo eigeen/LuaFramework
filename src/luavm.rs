@@ -14,8 +14,8 @@ use crate::error::{Error, Result};
 
 mod library;
 
-pub type SharedLuaVM = Arc<Mutex<LuaVM>>;
-pub type WeakLuaVM = Weak<Mutex<LuaVM>>;
+pub type SharedLuaVM = Arc<LuaVM>;
+pub type WeakLuaVM = Weak<LuaVM>;
 
 /// 虚拟机ID
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -63,7 +63,7 @@ impl LuaVMManager {
         let id = luavm.id();
 
         let virtual_path = format!("virtual:{}", path);
-        let luavm_shared = Arc::new(Mutex::new(luavm));
+        let luavm_shared = Arc::new(luavm);
         inner.add_vm(id, &virtual_path, luavm_shared.clone());
 
         luavm_shared
@@ -80,15 +80,14 @@ impl LuaVMManager {
 
         // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
-        let luavm_shared = Arc::new(Mutex::new(luavm));
+        let luavm_shared = Arc::new(luavm);
         self.inner.lock().vms.insert(id, luavm_shared.clone());
 
         {
-            let mut luavm = luavm_shared.lock();
             // 加载标准库
-            luavm.load_std_libs()?;
+            luavm_shared.load_std_libs()?;
             // 加载自定义库
-            luavm.load_luaf_libs()?;
+            luavm_shared.load_luaf_libs()?;
             // 加载脚本
             let script_data = std::fs::read_to_string(&script_path).map_err(|e| {
                 Error::IoWithContext(
@@ -99,20 +98,20 @@ impl LuaVMManager {
                     ),
                 )
             })?;
-            luavm.load_script(&script_data)?;
+            luavm_shared.load_script(&script_data)?;
         }
 
         Ok(luavm_shared)
     }
 
     /// 获取虚拟机
-    pub fn get_vm(&self, id: LuaVMId) -> Option<Arc<Mutex<LuaVM>>> {
+    pub fn get_vm(&self, id: LuaVMId) -> Option<SharedLuaVM> {
         let inner = self.inner.lock();
         inner.vms.get(&id).cloned()
     }
 
     /// 根据虚拟机路径获取虚拟机
-    pub fn get_vm_by_path(&self, path: &str) -> Option<Arc<Mutex<LuaVM>>> {
+    pub fn get_vm_by_path(&self, path: &str) -> Option<SharedLuaVM> {
         let inner = self.inner.lock();
         inner
             .vm_paths
@@ -121,7 +120,7 @@ impl LuaVMManager {
     }
 
     /// 根据Lua实例获取虚拟机
-    pub fn get_vm_by_lua(&self, lua: &Lua) -> Option<Arc<Mutex<LuaVM>>> {
+    pub fn get_vm_by_lua(&self, lua: &Lua) -> Option<SharedLuaVM> {
         let luaid = Self::get_id_from_lua(lua).ok()?;
         let inner = self.inner.lock();
         inner.vms.get(&luaid).cloned()
@@ -155,7 +154,7 @@ impl LuaVMManager {
             }
 
             let vm = self.create_vm_with_file(&path)?;
-            vms.push(vm.lock().id());
+            vms.push(vm.id());
         }
 
         Ok(vms)
@@ -265,12 +264,12 @@ impl LuaVM {
     }
 
     /// 加载Lua标准库
-    pub fn load_std_libs(&mut self) -> LuaResult<()> {
+    pub fn load_std_libs(&self) -> LuaResult<()> {
         self.lua.load_std_libs(LuaStdLib::ALL_SAFE)
     }
 
     /// 加载 LuaFramework 自定义库
-    pub fn load_luaf_libs(&mut self) -> LuaResult<()> {
+    pub fn load_luaf_libs(&self) -> LuaResult<()> {
         let globals = self.lua.globals();
 
         globals.set("_id", self.id)?;
@@ -286,7 +285,7 @@ impl LuaVM {
     }
 
     /// 加载脚本
-    pub fn load_script(&mut self, script: &str) -> LuaResult<()> {
+    pub fn load_script(&self, script: &str) -> LuaResult<()> {
         self.lua.load(script).exec()
     }
 

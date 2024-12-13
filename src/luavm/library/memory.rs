@@ -93,6 +93,7 @@ impl LuaUserData for LuaPtr {
             Ok(Self::new(this.to_u64().wrapping_sub(other_ptr.to_u64())))
         });
 
+        // 转换为 Lua 原生 Integer 类型
         methods.add_method("to_integer", |_, this, ()| {
             let value = this.to_u64();
             // 检查精度
@@ -198,14 +199,59 @@ impl LuaUserData for LuaPtr {
             Ok(())
         });
 
+        // 读取值并返回为新的 LuaPtr
+        methods.add_method("read_ptr", |lua, this, ()| {
+            let ptr = this.to_usize();
+            let bytes = quick_read_bytes(lua, ptr, 8).into_lua_err()?;
+            let value = usize::from_le_bytes(bytes);
+
+            let luaptr = LuaPtr::new(value as u64);
+            Ok(luaptr)
+        });
+
         // 进阶内存读写方法
         // TODO: 各种字符串读写
 
         // 指针运算便捷方法
         // 多级指针偏移等
-        methods.add_method("offset", |lua, this, args: mlua::Variadic<LuaValue>| {
-            todo!();
-            Ok(())
+
+        // 偏移指针。支持传入多个变量进行多级偏移。
+        // 返回新的LuaPtr，可链式调用。
+        methods.add_method("offset", |_, this, args: mlua::Variadic<LuaValue>| {
+            let ptr = this.to_u64();
+
+            // 解析参数
+            if args.is_empty() {
+                return Ok(LuaPtr::new(ptr));
+            }
+            let offsets = Self::parse_offset_args(args)?;
+
+            // 进行指针偏移
+            let result = MemoryUtils::offset_ptr(ptr as *const (), &offsets);
+
+            let new_ptr = LuaPtr::new(result.map(|ptr| ptr as u64).unwrap_or(0));
+
+            Ok(new_ptr)
+        });
+        // CE方法偏移指针。支持传入多个变量进行多级偏移。
+        // 与默认方法相比，该方法会先对基址进行取值操作。
+        // 等效于 `:read_ptr():offset()`
+        // 返回新的LuaPtr，可链式调用。
+        methods.add_method("offset_ce", |_, this, args: mlua::Variadic<LuaValue>| {
+            let ptr = this.to_u64();
+
+            // 解析参数
+            if args.is_empty() {
+                return Ok(LuaPtr::new(ptr));
+            }
+            let offsets = Self::parse_offset_args(args)?;
+
+            // 进行指针偏移
+            let result = MemoryUtils::offset_ptr_ce(ptr as *const (), &offsets);
+
+            let new_ptr = LuaPtr::new(result.map(|ptr| ptr as u64).unwrap_or(0));
+
+            Ok(new_ptr)
         });
     }
 }
@@ -290,6 +336,29 @@ impl LuaPtr {
                     .into_lua_err(),
             ),
         }
+    }
+
+    /// 解析偏移参数
+    fn parse_offset_args(args: mlua::Variadic<LuaValue>) -> LuaResult<Vec<isize>> {
+        let mut offsets = vec![];
+
+        let first_arg = args.first().unwrap();
+        if let LuaValue::Table(table) = first_arg {
+            // 如果第一个值是table
+            for arg in table.sequence_values() {
+                let arg_v: isize = arg?;
+                offsets.push(arg_v);
+            }
+        } else {
+            for arg in args {
+                let arg_v = arg
+                    .as_integer()
+                    .ok_or(Error::InvalidValue("integer", format!("{:?}", arg)).into_lua_err())?;
+                offsets.push(arg_v as isize);
+            }
+        }
+
+        Ok(offsets)
     }
 }
 

@@ -196,7 +196,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
         //     let ptr = memory::LuaPtr::from_u64(this.context.arg(index) as u64);
         //     ptr.into_lua(lua)
         // });
-        methods.add_meta_method("__index", |lua, this, key: LuaValue| {
+        methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();
 
             match index_key {
@@ -242,7 +242,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
             }
         });
         methods.add_meta_method(
-            "__newindex",
+            LuaMetaMethod::NewIndex,
             |_lua, this, (key, value): (LuaValue, LuaValue)| {
                 let index_key: IndexKey = key.into();
 
@@ -490,7 +490,6 @@ impl InterceptorDispatcher {
             };
 
             if let Some(lua_callback) = lua_callback {
-                let luavm = luavm.lock();
                 let lua = luavm.lua();
                 lua.scope(|scope| {
                     let args = match context.point_cut() {
@@ -543,14 +542,13 @@ mod tests {
         init_logging();
 
         let luavm_shared = LuaVMManager::instance().create_uninit_vm("test_interceptor.lua");
-        let mut luavm = luavm_shared.lock();
 
-        luavm.load_std_libs().unwrap();
-        luavm.load_luaf_libs().unwrap();
+        luavm_shared.load_std_libs().unwrap();
+        luavm_shared.load_luaf_libs().unwrap();
 
         let func_ptr = test_add as usize;
 
-        luavm
+        luavm_shared
             .lua()
             .load(format!(
                 r#"
@@ -574,8 +572,6 @@ frida.Interceptor.attach(hook_ptr, {{
             ))
             .exec()
             .unwrap();
-
-        drop(luavm);
 
         let result = test_add(1, 2);
         eprintln!("result: {}", result);
