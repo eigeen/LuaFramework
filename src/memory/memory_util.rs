@@ -78,7 +78,7 @@ impl MemoryUtils {
         if size == 0 {
             return Err(MemoryError::InvalidSize(size));
         }
-        if address == 0 {
+        if Self::is_in_reserved_range(address) {
             return Err(MemoryError::PermissionNoRead(address));
         }
         if safe {
@@ -97,7 +97,7 @@ impl MemoryUtils {
         if size == 0 || size > 8 {
             return Err(MemoryError::InvalidSize(size as usize));
         }
-        if address == 0 {
+        if Self::is_in_reserved_range(address) {
             return Err(MemoryError::PermissionNoRead(address));
         }
         if safe {
@@ -125,7 +125,7 @@ impl MemoryUtils {
         if buf.is_empty() {
             return Ok(());
         }
-        if address == 0 {
+        if Self::is_in_reserved_range(address) {
             return Err(MemoryError::PermissionNoWrite(address));
         }
         if safe {
@@ -161,7 +161,7 @@ impl MemoryUtils {
                     // 最后一级不取值
                     break;
                 }
-                if addr.is_null() {
+                if Self::is_in_reserved_range(addr as usize) {
                     return None;
                 }
                 addr = *(addr as *const *const T);
@@ -182,7 +182,7 @@ impl MemoryUtils {
             // 取值后需要判断是否为空指针
             for &offset in offsets.iter() {
                 let valptr = *(addr as *const *const T);
-                if valptr.is_null() {
+                if Self::is_in_reserved_range(addr as usize) {
                     return None;
                 }
                 addr = valptr.byte_offset(offset);
@@ -190,6 +190,11 @@ impl MemoryUtils {
             // 返回最后一级指针
             Some(addr)
         }
+    }
+
+    /// 指针是否在可能的保留区范围
+    fn is_in_reserved_range(address: usize) -> bool {
+        (0..=0x10000).contains(&address) || address > i64::MAX as usize
     }
 }
 
