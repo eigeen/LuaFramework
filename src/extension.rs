@@ -1,6 +1,8 @@
 use std::{collections::HashMap, ffi::c_void, path::Path, sync::LazyLock};
 
-use luaf_include::{CoreAPIFunctions, CoreAPIParam, OnLuaStateCreatedCb, OnLuaStateDestroyedCb};
+use luaf_include::{
+    CoreAPIFunctions, CoreAPIParam, LogLevel, OnLuaStateCreatedCb, OnLuaStateDestroyedCb,
+};
 use parking_lot::Mutex;
 use windows::{
     core::{s, PCWSTR},
@@ -159,6 +161,7 @@ struct CoreExtension {
 const CORE_API_FUNCTIONS: CoreAPIFunctions = CoreAPIFunctions {
     on_lua_state_created: set_on_lua_state_created,
     on_lua_state_destroyed: set_on_lua_state_destroyed,
+    log: log_,
 };
 const CORE_API_PARAM: CoreAPIParam = CoreAPIParam {
     add_core_function,
@@ -214,4 +217,17 @@ extern "C" fn set_on_lua_state_destroyed(callback: OnLuaStateDestroyedCb) {
         .lock()
         .on_lua_state_destroyed
         .push(callback);
+}
+
+extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
+    let msg_slice = unsafe { std::slice::from_raw_parts(msg, msg_len as usize) };
+    let msg_str = std::str::from_utf8(msg_slice).unwrap_or_default();
+
+    match level {
+        LogLevel::Trace => log::trace!("{}", msg_str),
+        LogLevel::Debug => log::debug!("{}", msg_str),
+        LogLevel::Info => log::info!("{}", msg_str),
+        LogLevel::Warn => log::warn!("{}", msg_str),
+        LogLevel::Error => log::error!("{}", msg_str),
+    }
 }

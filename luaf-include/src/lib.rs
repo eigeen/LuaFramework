@@ -21,6 +21,7 @@ impl CoreAPIParam {
 pub struct CoreAPIFunctions {
     pub on_lua_state_created: extern "C" fn(OnLuaStateCreatedCb),
     pub on_lua_state_destroyed: extern "C" fn(OnLuaStateDestroyedCb),
+    pub log: extern "C" fn(LogLevel, msg: *const u8, msg_len: u32),
 }
 
 impl CoreAPIFunctions {
@@ -31,4 +32,13 @@ impl CoreAPIFunctions {
     pub fn on_lua_state_destroyed(&self, cb: OnLuaStateDestroyedCb) {
         (self.on_lua_state_destroyed)(cb)
     }
+}
+
+#[repr(i32)]
+pub enum LogLevel {
+    Trace = 0,
+    Debug = 1,
+    Info = 2,
+    Warn = 3,
+    Error = 4,
 }
