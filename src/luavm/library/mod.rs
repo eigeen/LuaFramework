@@ -1,3 +1,4 @@
+pub mod ffi_call;
 pub mod frida;
 pub mod memory;
 pub mod runtime;

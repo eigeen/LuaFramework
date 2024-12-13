@@ -41,6 +41,15 @@ impl CoreAPI {
         self.inner.lock().functions.get(name).copied()
     }
 
+    /// 是否存在指定的扩展
+    pub fn has_extension(&self, name: &str) -> bool {
+        self.inner
+            .lock()
+            .extensions
+            .iter()
+            .any(|ext| ext.name == name)
+    }
+
     /// 发布 Lua State 创建事件
     pub fn dispatch_lua_state_created(&self, lua_state_ptr: usize) {
         for callback in self.inner.lock().on_lua_state_created.iter() {

@@ -12,6 +12,16 @@ pub struct CoreAPIParam {
 }
 
 impl CoreAPIParam {
+    pub fn add_core_function(&self, name: &str, func: *const c_void) {
+        let name_bytes = name.as_bytes();
+        (self.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
+    }
+
+    pub fn get_core_function(&self, name: &str) -> *const c_void {
+        let name_bytes = name.as_bytes();
+        (self.get_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32)
+    }
+
     pub fn functions(&self) -> &CoreAPIFunctions {
         unsafe { &*self.functions }
     }

@@ -1,217 +1,229 @@
-//! 动态调用 C 函数的封装
+use std::{ffi::c_void, ptr::addr_of_mut};
 
-use std::ffi::c_void;
+use libffi::raw::ffi_abi_FFI_DEFAULT_ABI;
+use strum::FromRepr;
 
-use libffi::high::{Arg as FFIArg, CType};
-use mlua::prelude::*;
-use serde::Deserialize;
+type AnyVar = *mut c_void;
+
+static mut LAST_ERROR_MESSAGE: [u8; 512] = [0; 512];
 
 #[derive(Debug, thiserror::Error)]
-pub enum CallError {}
-
-#[derive(Debug, Clone, Copy, Deserialize)]
-#[serde(rename_all = "lowercase")]
-pub enum Argument {
-    Void,
-    UInt8(u8),
-    Sint8(i8),
-    UInt16(u16),
-    Sint16(i16),
-    UInt32(u32),
-    Sint32(i32),
-    UInt64(u64),
-    Sint64(i64),
-    Float(f32),
-    Double(f64),
-    Pointer(usize),
+pub enum CallError {
+    #[error("Unmatching arg count: expected {0}, got {1}")]
+    UnmatchingArgCount(usize, usize),
+    #[error("Invalid FFI arg type: {0}")]
+    InvalidFFIArgType(i32),
+    #[error("LibFFI error: {0}")]
+    LibFFI(String),
 }
 
-impl IntoLua for Argument {
-    fn into_lua(self, _lua: &Lua) -> LuaResult<LuaValue> {
-        Ok(match self {
-            Argument::Void => LuaNil,
-            Argument::UInt8(v) => LuaValue::Integer(v as i64),
-            Argument::Sint8(v) => LuaValue::Integer(v as i64),
-            Argument::UInt16(v) => LuaValue::Integer(v as i64),
-            Argument::Sint16(v) => LuaValue::Integer(v as i64),
-            Argument::UInt32(v) => LuaValue::Integer(v as i64),
-            Argument::Sint32(v) => LuaValue::Integer(v as i64),
-            // TODO: 处理长整数溢出
-            Argument::UInt64(v) => LuaValue::Integer(v as i64),
-            Argument::Sint64(v) => LuaValue::Integer(v),
-            Argument::Float(v) => LuaValue::Number(v as f64),
-            Argument::Double(v) => LuaValue::Number(v),
-            Argument::Pointer(v) => LuaValue::Integer(v as i64),
-        })
-    }
-}
-
-impl FromLua for Argument {
-    fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
-        if !value.is_table() && !value.is_nil() {
-            return Err(LuaError::external(format!(
-                "Invalid argument: {}",
-                value.to_string()?
-            )));
-        }
-
-        if value.is_nil() {
-            return Ok(Argument::Void);
-        }
-
-        // 模式：{ "sint32": 123 }
-        let deserialized_table: Argument = lua.from_value(value)?;
-        Ok(deserialized_table)
-    }
-}
-
-impl Argument {
-    pub fn as_ffi_arg(&self) -> FFIArg<'_> {
+impl CallError {
+    fn as_code(&self) -> i32 {
         match self {
-            Argument::Void => FFIArg::new(&()),
-            Argument::UInt8(v) => FFIArg::new(v),
-            Argument::Sint8(v) => FFIArg::new(v),
-            Argument::UInt16(v) => FFIArg::new(v),
-            Argument::Sint16(v) => FFIArg::new(v),
-            Argument::UInt32(v) => FFIArg::new(v),
-            Argument::Sint32(v) => FFIArg::new(v),
-            Argument::UInt64(v) => FFIArg::new(v),
-            Argument::Sint64(v) => FFIArg::new(v),
-            Argument::Float(v) => FFIArg::new(v),
-            Argument::Double(v) => FFIArg::new(v),
-            Argument::Pointer(v) => FFIArg::new(v),
+            CallError::UnmatchingArgCount(_, _) => 1,
+            CallError::InvalidFFIArgType(_) => 2,
+            CallError::LibFFI(_) => 3,
         }
     }
 
-    pub fn type_name(&self) -> &'static str {
-        match self {
-            Argument::Void => "void",
-            Argument::UInt8(_) => "uint8",
-            Argument::Sint8(_) => "int8",
-            Argument::UInt16(_) => "uint16",
-            Argument::Sint16(_) => "int16",
-            Argument::UInt32(_) => "uint32",
-            Argument::Sint32(_) => "int32",
-            Argument::UInt64(_) => "uint64",
-            Argument::Sint64(_) => "int64",
-            Argument::Float(_) => "float",
-            Argument::Double(_) => "double",
-            Argument::Pointer(_) => "pointer",
+    fn write_last_error(&self) {
+        let msg = self.to_string();
+        let msg_bytes = msg.as_bytes();
+        if msg_bytes.len() >= 512 {
+            return;
         }
-    }
 
-    pub fn from_type_name(type_name: &str) -> Option<Self> {
-        match type_name {
-            "void" => Some(Argument::Void),
-            "uint8" => Some(Argument::UInt8(0)),
-            "int8" => Some(Argument::Sint8(0)),
-            "uint16" => Some(Argument::UInt16(0)),
-            "int16" => Some(Argument::Sint16(0)),
-            "uint32" => Some(Argument::UInt32(0)),
-            "int32" => Some(Argument::Sint32(0)),
-            "uint64" => Some(Argument::UInt64(0)),
-            "int64" => Some(Argument::Sint64(0)),
-            "float" => Some(Argument::Float(0.0)),
-            "double" => Some(Argument::Double(0.0)),
-            "pointer" => Some(Argument::Pointer(0)),
-            _ => None,
+        unsafe {
+            std::ptr::copy_nonoverlapping(
+                msg_bytes.as_ptr(),
+                LAST_ERROR_MESSAGE.as_mut_ptr(),
+                msg_bytes.len(),
+            );
         }
-    }
-
-    pub fn is_integer(&self) -> bool {
-        matches!(
-            self,
-            Argument::UInt8(_)
-                | Argument::Sint8(_)
-                | Argument::UInt16(_)
-                | Argument::Sint16(_)
-                | Argument::UInt32(_)
-                | Argument::Sint32(_)
-                | Argument::UInt64(_)
-                | Argument::Sint64(_)
-                | Argument::Pointer(_)
-        )
-    }
-
-    /// 是否可以安全的在 Lua 中使用
-    ///
-    /// 可以被安全转换为i64不丢失精度的类型子集
-    pub fn is_safe_to_lua(&self) -> bool {
-        matches!(
-            self,
-            Argument::UInt8(_)
-                | Argument::Sint8(_)
-                | Argument::UInt16(_)
-                | Argument::Sint16(_)
-                | Argument::UInt32(_)
-                | Argument::Sint32(_)
-                | Argument::Sint64(_)
-        )
     }
 }
 
-/// 调用 C 函数
-pub fn call_c_function<R>(fun: *const c_void, args: &[Argument]) -> R
-where
-    R: CType,
-{
-    let fun = libffi::high::CodePtr::from_ptr(fun);
-    let args = args
-        .iter()
-        .map(|arg| arg.as_ffi_arg())
-        .collect::<Vec<FFIArg>>();
+#[repr(i32)]
+#[derive(Debug, Clone, Copy, FromRepr)]
+pub enum ArgType {
+    Void = 0,
+    UInt8 = 1,
+    Sint8 = 2,
+    UInt16 = 3,
+    Sint16 = 4,
+    UInt32 = 5,
+    Sint32 = 6,
+    UInt64 = 7,
+    Sint64 = 8,
+    Float = 9,
+    Double = 10,
+    Pointer = 11,
+}
 
-    let result: R = unsafe { libffi::high::call(fun, &args) };
+impl ArgType {
+    fn as_ffi_type(&self) -> *mut libffi::raw::ffi_type {
+        match self {
+            ArgType::Void => addr_of_mut!(libffi::raw::ffi_type_void),
+            ArgType::UInt8 => addr_of_mut!(libffi::raw::ffi_type_uint8),
+            ArgType::Sint8 => addr_of_mut!(libffi::raw::ffi_type_sint8),
+            ArgType::UInt16 => addr_of_mut!(libffi::raw::ffi_type_uint16),
+            ArgType::Sint16 => addr_of_mut!(libffi::raw::ffi_type_sint16),
+            ArgType::UInt32 => addr_of_mut!(libffi::raw::ffi_type_uint32),
+            ArgType::Sint32 => addr_of_mut!(libffi::raw::ffi_type_sint32),
+            ArgType::UInt64 => addr_of_mut!(libffi::raw::ffi_type_uint64),
+            ArgType::Sint64 => addr_of_mut!(libffi::raw::ffi_type_sint64),
+            ArgType::Float => addr_of_mut!(libffi::raw::ffi_type_float),
+            ArgType::Double => addr_of_mut!(libffi::raw::ffi_type_double),
+            ArgType::Pointer => addr_of_mut!(libffi::raw::ffi_type_pointer),
+        }
+    }
+}
 
-    result
+#[no_mangle]
+#[allow(non_snake_case)]
+pub unsafe extern "C" fn CallCFunction(
+    ptr: *mut c_void,
+    arg_types: *mut AnyVar,
+    arg_types_len: usize,
+    args: *mut AnyVar,
+    args_len: usize,
+    ret_type: i32,
+    ret_val: *mut AnyVar,
+) -> i32 {
+    // 检查参数数量
+    if arg_types_len != args_len {
+        let err = CallError::UnmatchingArgCount(arg_types_len, args_len);
+        err.write_last_error();
+        return err.as_code();
+    }
+
+    // 读取参数类型列表
+    let mut arg_types_raw = vec![];
+    for i in 0..arg_types_len {
+        arg_types_raw.push(arg_types.add(i).read());
+    }
+
+    // 转换参数列表
+    let mut ffi_args = vec![];
+    for i in 0..args_len {
+        // 保存入参值的指针
+        ffi_args.push(args.add(i) as *mut c_void);
+    }
+
+    // 转换参数类型为ffi类型
+    let mut ffi_arg_types = vec![];
+    for arg_type_raw in arg_types_raw {
+        let arg_type_int: i32 = arg_type_raw as i32;
+        let result =
+            ArgType::from_repr(arg_type_int).ok_or(CallError::InvalidFFIArgType(arg_type_int));
+        let arg_type = match result {
+            Ok(a) => a,
+            Err(err) => {
+                err.write_last_error();
+                return err.as_code();
+            }
+        };
+        let ffi_type = arg_type.as_ffi_type();
+        ffi_arg_types.push(ffi_type);
+    }
+
+    // 转换返回值类型
+    let mut has_ret = false;
+
+    let ffi_ret_type = match ArgType::from_repr(ret_type) {
+        Some(rv) => {
+            has_ret = true;
+            rv.as_ffi_type()
+        }
+        None => {
+            has_ret = false;
+            ArgType::Void.as_ffi_type()
+        }
+    };
+
+    // 构建参数
+    let mut cif: libffi::raw::ffi_cif = Default::default();
+
+    let result = libffi::low::prep_cif(
+        &mut cif,
+        ffi_abi_FFI_DEFAULT_ABI,
+        ffi_arg_types.len(),
+        ffi_ret_type,
+        ffi_arg_types.as_mut_ptr(),
+    );
+    if let Err(e) = result {
+        let err = CallError::LibFFI(format!("{:?}", e));
+        err.write_last_error();
+        return err.as_code();
+    }
+
+    // 调用函数
+    let fn_ = Some(std::mem::transmute::<AnyVar, unsafe extern "C" fn()>(ptr));
+    let mut ret_raw = std::mem::MaybeUninit::<AnyVar>::uninit();
+    libffi::raw::ffi_call(
+        &mut cif,
+        fn_,
+        ret_raw.as_mut_ptr() as *mut c_void,
+        ffi_args.as_mut_ptr(),
+    );
+    // let ret_raw: usize = libffi::low::call(&mut cif, CodePtr(ptr), ffi_args.as_mut_ptr());
+
+    // 写入返回值
+    if has_ret {
+        ret_val.write(ret_raw.assume_init());
+    }
+
+    0
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    fn init_logging() {
+        env_logger::builder()
+            .filter_level(log::LevelFilter::Debug)
+            .init();
+    }
+
     #[inline(never)]
-    extern "C" fn add(a: i32, b: i32) -> i32 {
+    extern "C" fn test_add(a: i32, b: i32) -> i32 {
         a + b
     }
 
-    #[inline(never)]
-    extern "C" fn add_f32(a: f32, b: f32) -> f32 {
-        a + b
-    }
-
-    #[inline(never)]
-    extern "fastcall" fn ptr_noret(a: *mut std::ffi::c_void, b: i32) {
-        eprintln!("ptr_noret called: a={:p}, b={}", a, b);
-    }
-
     #[test]
-    fn test_call_add() {
-        let fun = libffi::high::CodePtr::from_ptr(add as *const _);
+    fn test_call_c_function() {
+        init_logging();
 
-        let arg1 = libffi::high::arg(&1i32);
-        let arg2 = libffi::high::arg(&2i32);
+        type AnyVar = *mut c_void;
 
-        let result: usize = unsafe { libffi::high::call(fun, &[arg1, arg2]) };
-        eprintln!("result: {}", result as i32);
-    }
+        unsafe {
+            let ptr = test_add as *mut c_void;
+            let mut arg_types = vec![
+                ArgType::Sint32 as i32 as AnyVar,
+                ArgType::Sint32 as i32 as AnyVar,
+            ];
+            let arg_types_len = arg_types.len();
+            let mut args = vec![1i32 as AnyVar, 2i32 as AnyVar];
+            let args_len = args.len();
+            let ret_type = ArgType::Sint32 as i32;
+            let mut ret_val = std::ptr::null_mut::<c_void>();
 
-    #[test]
-    fn test_call_add_f32() {
-        let fun = libffi::high::CodePtr::from_ptr(add_f32 as *const _);
+            let code = CallCFunction(
+                ptr,
+                arg_types.as_mut_ptr(),
+                arg_types_len,
+                args.as_mut_ptr(),
+                args_len,
+                ret_type,
+                &mut ret_val as *mut *mut c_void,
+            );
 
-        let arg1 = libffi::high::arg(&1f32);
-        let arg2 = libffi::high::arg(&2f32);
+            eprintln!("code: {}", code);
+            eprintln!("ret_val: {}", ret_val as usize);
 
-        let result: f32 = unsafe { libffi::high::call(fun, &[arg1, arg2]) };
-        eprintln!("result: {}", result);
-    }
-
-    #[test]
-    fn test_call_ptr_noret() {
-        let fun = libffi::high::CodePtr::from_ptr(ptr_noret as *const _);
-
-        let arg1 = libffi::high::arg(&0x1080_usize);
-        let arg2 = libffi::high::arg(&5_i32);
-
-        unsafe { libffi::high::call::<()>(fun, &[arg1, arg2]) };
+            assert_eq!(code, 0);
+            assert_eq!(ret_val as i32, 3);
+        }
     }
 }
