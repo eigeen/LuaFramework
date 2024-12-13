@@ -1,8 +1,7 @@
 import shutil
 import os
 
-os.system("cargo build --release --package lua-framework")
-os.system("cargo build --release --package luaf-libffi")
+os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 shutil.copy(
     "target/release/lua_framework.dll",
