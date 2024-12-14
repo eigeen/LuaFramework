@@ -34,4 +34,6 @@ pub enum Error {
     ParseInt(String),
     #[error("Failed to get address record for '{0}'")]
     AddressRecordNotFound(String),
+    #[error("Failed to get singleton '{0}'")]
+    SingletonNotFound(String),
 }

@@ -272,6 +272,7 @@ impl LuaVM {
         globals.set("_name", self.get_name())?;
 
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
+        library::sdk::SdkModule::register_library(&self.lua, &globals)?;
         library::utility::UtilityModule::register_library(&self.lua, &globals)?;
         library::memory::MemoryModule::register_library(&self.lua, &globals)?;
         library::frida::FridaModule::register_library(&self.lua, &globals)?;

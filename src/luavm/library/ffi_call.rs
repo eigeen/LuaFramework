@@ -13,14 +13,14 @@ use crate::{
     error::Error, extension::CoreAPI, luavm::library::runtime::RuntimeModule, memory::MemoryUtils,
 };
 
-use super::{utility::UtilityModule, LuaModule};
+use super::{sdk::SdkModule, utility::UtilityModule, LuaModule};
 
 pub struct FFICallModule;
 
 static mut CALL_C_FUNCTION: Option<CallCFunction> = None;
 
 impl LuaModule for FFICallModule {
-    fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
+    fn register_library(lua: &mlua::Lua, _registry: &mlua::Table) -> mlua::Result<()> {
         if !CoreAPI::instance().has_extension("luaf_libffi") {
             log::debug!("No luaf_libffi extension, skipping libffi module initialization");
             return Ok(());
@@ -28,18 +28,13 @@ impl LuaModule for FFICallModule {
 
         acquire_ffi_functions();
 
-        let libffi_table = lua.create_table()?;
+        // 向 sdk 模块注册接口
+        let sdk_table = SdkModule::get_from_lua(lua)?;
+        sdk_table.set(
+            "call_native_function",
+            lua.create_function(lua_call_c_function)?,
+        )?;
 
-        unsafe {
-            if CALL_C_FUNCTION.is_some() {
-                libffi_table.set(
-                    "call_native_function",
-                    lua.create_function(lua_call_c_function)?,
-                )?;
-            }
-        }
-
-        registry.set("libffi", libffi_table)?;
         Ok(())
     }
 }

@@ -48,7 +48,7 @@ impl LuaModule for UtilityModule {
 
 impl UtilityModule {
     /// 从 Lua 环境中获取 utils 模块
-    pub fn get_utils_from_lua(lua: &Lua) -> LuaResult<LuaTable> {
+    pub fn get_from_lua(lua: &Lua) -> LuaResult<LuaTable> {
         lua.globals().get::<LuaTable>("utils")
     }
 

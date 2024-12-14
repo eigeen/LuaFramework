@@ -2,6 +2,7 @@ pub mod ffi_call;
 pub mod frida;
 pub mod memory;
 pub mod runtime;
+pub mod sdk;
 pub mod utility;
 
 pub trait LuaModule {
