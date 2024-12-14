@@ -4,6 +4,8 @@ use crate::{error::Error, game::singleton::SingletonManager};
 
 use super::{memory::LuaPtr, LuaModule};
 
+mod input;
+
 pub struct SdkModule;
 
 impl LuaModule for SdkModule {
@@ -18,6 +20,8 @@ impl LuaModule for SdkModule {
                     .ok_or(Error::SingletonNotFound(name).into_lua_err())
             })?,
         )?;
+        // input子模块
+        input::InputModule::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())

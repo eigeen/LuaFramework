@@ -13,6 +13,7 @@ mod bootstrap;
 mod error;
 mod extension;
 mod game;
+mod input;
 mod luavm;
 mod memory;
 mod utility;
