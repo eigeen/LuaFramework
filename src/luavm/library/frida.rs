@@ -13,7 +13,7 @@ use mlua::prelude::*;
 use parking_lot::Mutex;
 use rand::RngCore;
 
-use super::{memory, LuaModule};
+use super::{memory, sdk::SdkModule, LuaModule};
 use crate::{
     error::{Error, Result},
     luavm::{LuaVMManager, WeakLuaVM},
@@ -29,60 +29,53 @@ pub struct FridaModule {}
 
 impl LuaModule for FridaModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
-        registry.set("frida", FridaModule::default())?;
+        let sdk_table = SdkModule::get_from_lua(lua)?;
+
+        // Interceptor
+        let interceptor_table = lua.create_table()?;
+        interceptor_table.set(
+            "attach",
+            lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
+                // 尝试以 LuaPtr 类型解析 hook_ptr
+                let ptr = memory::LuaPtr::from_lua(hook_ptr)?;
+                // 安全检查
+                MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
+
+                let interceptor = LuaInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
+                let handle = interceptor.handle;
+                InterceptorDispatcher::instance()
+                    .lock()
+                    .add_hook(interceptor)
+                    .map_err(LuaError::external)?;
+
+                // 记录句柄，以便后续移除
+                let handle_table = lua.globals().get::<LuaTable>("_interceptor_handles")?;
+                handle_table.push(handle)?;
+
+                Ok(handle)
+            })?,
+        )?;
+        interceptor_table.set(
+            "detach",
+            lua.create_function(|lua, handle: InterceptorHandle| {
+                let ok = InterceptorDispatcher::instance().lock().remove_hook(handle);
+
+                if ok {
+                    // 移除句柄记录
+                    if let Ok(handle_table) = lua.globals().get::<LuaTable>("_interceptor_handles")
+                    {
+                        handle_table.set(handle, LuaNil)?;
+                    }
+                }
+
+                Ok(ok)
+            })?,
+        )?;
+
+        sdk_table.set("Interceptor", interceptor_table)?;
 
         registry.set("_interceptor_handles", lua.create_table()?)?;
         Ok(())
-    }
-}
-
-impl LuaUserData for FridaModule {
-    fn add_fields<F: LuaUserDataFields<Self>>(fields: &mut F) {
-        fields.add_field_function_get("Interceptor", |lua, _ud| {
-            let interceptor_table = lua.create_table()?;
-            interceptor_table.set(
-                "attach",
-                lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
-                    // 尝试以 LuaPtr 类型解析 hook_ptr
-                    let ptr = memory::LuaPtr::from_lua(hook_ptr)?;
-                    // 安全检查
-                    MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
-
-                    let interceptor =
-                        LuaInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
-                    let handle = interceptor.handle;
-                    InterceptorDispatcher::instance()
-                        .lock()
-                        .add_hook(interceptor)
-                        .map_err(LuaError::external)?;
-
-                    // 记录句柄，以便后续移除
-                    let handle_table = lua.globals().get::<LuaTable>("_interceptor_handles")?;
-                    handle_table.push(handle)?;
-
-                    Ok(handle)
-                })?,
-            )?;
-            interceptor_table.set(
-                "detach",
-                lua.create_function(|lua, handle: InterceptorHandle| {
-                    let ok = InterceptorDispatcher::instance().lock().remove_hook(handle);
-
-                    if ok {
-                        // 移除句柄记录
-                        if let Ok(handle_table) =
-                            lua.globals().get::<LuaTable>("_interceptor_handles")
-                        {
-                            handle_table.set(handle, LuaNil)?;
-                        }
-                    }
-
-                    Ok(ok)
-                })?,
-            )?;
-
-            Ok(interceptor_table)
-        });
     }
 }
 
