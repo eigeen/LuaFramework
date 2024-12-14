@@ -9,7 +9,9 @@ use std::ffi::c_void;
 use mlua::prelude::*;
 use serde::Deserialize;
 
-use crate::{error::Error, extension::CoreAPI};
+use crate::{
+    error::Error, extension::CoreAPI, luavm::library::runtime::RuntimeModule, memory::MemoryUtils,
+};
 
 use super::LuaModule;
 
@@ -55,11 +57,17 @@ fn acquire_ffi_functions() {
 }
 
 fn lua_call_c_function(
-    _lua: &Lua,
+    lua: &Lua,
     (fun_arg, args, ret_type_name): (LuaValue, Vec<Argument>, Option<String>),
 ) -> LuaResult<LuaValue> {
     // 读取长整型
     let fun = lua_parse_long_integer(&fun_arg)?;
+    // 判断权限
+    let is_debug = RuntimeModule::is_debug_mode(lua);
+    if is_debug {
+        MemoryUtils::check_permission_execute(fun as usize).map_err(|e| e.into_lua_err())?;
+    }
+
     // 解析返回值类型
     let ret_type = ret_type_name.and_then(|name| {
         let type_name = Argument::from_type_name(&name)?;

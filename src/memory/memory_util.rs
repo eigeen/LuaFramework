@@ -1,10 +1,8 @@
 use std::{io::Cursor, slice};
 
-use super::{
-    pattern_scan,
-    windows_util::{self, MemoryPermission},
-    MemoryError,
-};
+use super::{pattern_scan, windows_util, MemoryError};
+
+pub use windows_util::MemoryPermission;
 
 pub struct MemoryUtils;
 
@@ -146,6 +144,23 @@ impl MemoryUtils {
     /// 获取内存页权限
     pub fn get_page_permission(address: usize) -> Result<MemoryPermission, MemoryError> {
         unsafe { Ok(windows_util::get_memory_permission(address)?) }
+    }
+
+    pub fn check_permission_rw(address: usize) -> Result<(), MemoryError> {
+        let permission = Self::get_page_permission(address)?;
+        let require = MemoryPermission::READ | MemoryPermission::WRITE;
+        if !permission.contains(require) {
+            return Err(MemoryError::PermissionNoRead(address));
+        }
+        Ok(())
+    }
+
+    pub fn check_permission_execute(address: usize) -> Result<(), MemoryError> {
+        let permission = Self::get_page_permission(address)?;
+        if !permission.contains(MemoryPermission::EXECUTE) {
+            return Err(MemoryError::PermissionNoRead(address));
+        }
+        Ok(())
     }
 
     /// 指针多级偏移计算
