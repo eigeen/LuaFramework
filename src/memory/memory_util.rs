@@ -2,7 +2,7 @@ use std::{io::Cursor, slice};
 
 use super::{pattern_scan, windows_util, MemoryError};
 
-pub use windows_util::MemoryPermission;
+pub use windows_util::MemoryState;
 
 pub struct MemoryUtils;
 
@@ -77,12 +77,12 @@ impl MemoryUtils {
             return Err(MemoryError::InvalidSize(size));
         }
         if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PermissionNoRead(address));
+            return Err(MemoryError::PagePermNoRead(address));
         }
         if safe {
-            let permission = Self::get_page_permission(address)?;
-            if !permission.contains(MemoryPermission::READ) {
-                return Err(MemoryError::PermissionNoRead(address));
+            let permission = Self::get_page_state(address)?;
+            if !permission.contains(MemoryState::READ) {
+                return Err(MemoryError::PagePermNoRead(address));
             }
         }
 
@@ -96,12 +96,12 @@ impl MemoryUtils {
             return Err(MemoryError::InvalidSize(size as usize));
         }
         if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PermissionNoRead(address));
+            return Err(MemoryError::PagePermNoRead(address));
         }
         if safe {
-            let permission = Self::get_page_permission(address)?;
-            if !permission.contains(MemoryPermission::READ) {
-                return Err(MemoryError::PermissionNoRead(address));
+            let permission = Self::get_page_state(address)?;
+            if !permission.contains(MemoryState::READ) {
+                return Err(MemoryError::PagePermNoRead(address));
             }
         }
 
@@ -124,12 +124,12 @@ impl MemoryUtils {
             return Ok(());
         }
         if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PermissionNoWrite(address));
+            return Err(MemoryError::PagePermNoWrite(address));
         }
         if safe {
-            let permission = Self::get_page_permission(address)?;
-            if !permission.contains(MemoryPermission::WRITE) {
-                return Err(MemoryError::PermissionNoWrite(address));
+            let permission = Self::get_page_state(address)?;
+            if !permission.contains(MemoryState::WRITE) {
+                return Err(MemoryError::PagePermNoWrite(address));
             }
         }
 
@@ -142,23 +142,34 @@ impl MemoryUtils {
     }
 
     /// 获取内存页权限
-    pub fn get_page_permission(address: usize) -> Result<MemoryPermission, MemoryError> {
-        unsafe { Ok(windows_util::get_memory_permission(address)?) }
+    pub fn get_page_state(address: usize) -> Result<MemoryState, MemoryError> {
+        unsafe { Ok(windows_util::get_memory_state(address)?) }
     }
 
+    /// 检查内存页是否可读写
     pub fn check_permission_rw(address: usize) -> Result<(), MemoryError> {
-        let permission = Self::get_page_permission(address)?;
-        let require = MemoryPermission::READ | MemoryPermission::WRITE;
-        if !permission.contains(require) {
-            return Err(MemoryError::PermissionNoRead(address));
+        let state = Self::get_page_state(address)?;
+        let require = MemoryState::READ | MemoryState::WRITE;
+        if !state.contains(require) {
+            return Err(MemoryError::PagePermNoRead(address));
         }
         Ok(())
     }
 
+    /// 检查内存页是否可执行
     pub fn check_permission_execute(address: usize) -> Result<(), MemoryError> {
-        let permission = Self::get_page_permission(address)?;
-        if !permission.contains(MemoryPermission::EXECUTE) {
-            return Err(MemoryError::PermissionNoRead(address));
+        let state = Self::get_page_state(address)?;
+        if !state.contains(MemoryState::EXECUTE) {
+            return Err(MemoryError::PagePermNoRead(address));
+        }
+        Ok(())
+    }
+
+    /// 检查内存页是否已提交。可用于hook检查。
+    pub fn check_page_commit(address: usize) -> Result<(), MemoryError> {
+        let state = Self::get_page_state(address)?;
+        if !state.contains(MemoryState::COMMIT) {
+            return Err(MemoryError::PageNotCommit(address));
         }
         Ok(())
     }

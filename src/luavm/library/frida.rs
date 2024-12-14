@@ -17,6 +17,7 @@ use super::{memory, LuaModule};
 use crate::{
     error::{Error, Result},
     luavm::{LuaVMManager, WeakLuaVM},
+    memory::MemoryUtils,
 };
 
 static GUM: LazyLock<Gum> = LazyLock::new(Gum::obtain);
@@ -44,6 +45,8 @@ impl LuaUserData for FridaModule {
                 lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
                     // 尝试以 LuaPtr 类型解析 hook_ptr
                     let ptr = memory::LuaPtr::from_lua(hook_ptr)?;
+                    // 安全检查
+                    MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
 
                     let interceptor =
                         LuaInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;

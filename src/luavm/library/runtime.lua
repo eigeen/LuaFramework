@@ -1,4 +1,4 @@
--- 安全长整型
+---@class UInt64 安全长整型
 local UInt64 = {
     high = 0,
     low = 0

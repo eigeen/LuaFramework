@@ -28,4 +28,6 @@ pub enum Error {
     InitCoreExtension(i32),
     #[error("Failed to parse integer from '{0}'")]
     ParseInt(String),
+    #[error("Failed to get address record for '{0}'")]
+    AddressRecordNotFound(String),
 }

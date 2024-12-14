@@ -13,9 +13,11 @@ pub enum MemoryError {
     #[error("Invalid size: {0}")]
     InvalidSize(usize),
     #[error("No permission to read at 0x{0:x}")]
-    PermissionNoRead(usize),
+    PagePermNoRead(usize),
     #[error("No permission to write at 0x{0:x}")]
-    PermissionNoWrite(usize),
+    PagePermNoWrite(usize),
+    #[error("Page not committed at 0x{0:x}. You're trying to access memory that hasn't been allocated or initialized.")]
+    PageNotCommit(usize),
 
     #[error("pattern scan error: {0}")]
     PatternScan(#[from] pattern_scan::Error),

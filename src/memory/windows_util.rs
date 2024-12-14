@@ -2,7 +2,7 @@ use bitflags::bitflags;
 use windows::Win32::{
     Foundation::HMODULE,
     System::{
-        Memory::{VirtualQueryEx, MEMORY_BASIC_INFORMATION},
+        Memory::{VirtualQueryEx, MEMORY_BASIC_INFORMATION, MEM_COMMIT},
         ProcessStatus::{EnumProcessModules, GetModuleInformation, MODULEINFO},
         Threading::GetCurrentProcess,
     },
@@ -14,10 +14,11 @@ use windows::Win32::System::Memory::{
 };
 
 bitflags! {
-    pub struct MemoryPermission: u32 {
+    pub struct MemoryState: u32 {
         const READ = 1;
         const WRITE = 1 << 1;
         const EXECUTE = 1 << 2;
+        const COMMIT = 1 << 3;
     }
 }
 
@@ -59,9 +60,7 @@ pub unsafe fn get_base_module_space() -> Result<(usize, usize), windows::core::E
 }
 
 /// 获取内存的权限
-pub unsafe fn get_memory_permission(
-    address: usize,
-) -> Result<MemoryPermission, windows::core::Error> {
+pub unsafe fn get_memory_state(address: usize) -> Result<MemoryState, windows::core::Error> {
     let hprocess = GetCurrentProcess();
 
     let mut mbi = MEMORY_BASIC_INFORMATION::default();
@@ -79,21 +78,25 @@ pub unsafe fn get_memory_permission(
     }
 
     // 权限位
-    let mut permissions = MemoryPermission::empty();
+    let mut permissions = MemoryState::empty();
 
     if mbi.Protect == PAGE_EXECUTE {
-        permissions |= MemoryPermission::EXECUTE;
+        permissions |= MemoryState::EXECUTE;
     } else if mbi.Protect == PAGE_EXECUTE_READ {
-        permissions |= MemoryPermission::EXECUTE | MemoryPermission::READ;
+        permissions |= MemoryState::EXECUTE | MemoryState::READ;
     } else if mbi.Protect == PAGE_EXECUTE_READWRITE || mbi.Protect == PAGE_EXECUTE_WRITECOPY {
-        permissions |= MemoryPermission::EXECUTE | MemoryPermission::READ | MemoryPermission::WRITE;
+        permissions |= MemoryState::EXECUTE | MemoryState::READ | MemoryState::WRITE;
     } else if mbi.Protect == PAGE_NOACCESS {
         // do nothing
     } else if mbi.Protect == PAGE_READONLY {
-        permissions |= MemoryPermission::READ;
+        permissions |= MemoryState::READ;
     } else if mbi.Protect == PAGE_READWRITE || mbi.Protect == PAGE_WRITECOPY {
-        permissions |= MemoryPermission::READ | MemoryPermission::WRITE;
+        permissions |= MemoryState::READ | MemoryState::WRITE;
     };
+
+    if mbi.State == MEM_COMMIT {
+        permissions |= MemoryState::COMMIT;
+    }
 
     Ok(permissions)
 }

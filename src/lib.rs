@@ -8,6 +8,7 @@ use windows::Win32::{
 
 static MAIN_THREAD_ONCE: Once = Once::new();
 
+mod address;
 mod error;
 mod extension;
 mod game;

@@ -87,4 +87,25 @@ impl UtilityModule {
 
         new_raw.call::<LuaTable>((high, low))
     }
+
+    /// 从 UInt64 table 中读取值
+    pub fn read_uint64_value(tbl: &LuaTable) -> LuaResult<u64> {
+        // 接收 UInt64 table
+        let mut is_uint64 = false;
+        if let Some(mt) = tbl.metatable() {
+            if let Ok(ty) = mt.get::<String>(LuaMetaMethod::Type.name()) {
+                if ty == "UInt64" {
+                    is_uint64 = true;
+                }
+            }
+        }
+        if !is_uint64 {
+            return Err(Error::InvalidValue("UInt64 table", tbl.to_string()?).into_lua_err());
+        }
+
+        let high: u32 = tbl.get("high")?;
+        let low: u32 = tbl.get("low")?;
+        let merged = Self::merge_to_u64(high, low);
+        Ok(merged)
+    }
 }

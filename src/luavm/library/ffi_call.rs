@@ -13,7 +13,7 @@ use crate::{
     error::Error, extension::CoreAPI, luavm::library::runtime::RuntimeModule, memory::MemoryUtils,
 };
 
-use super::LuaModule;
+use super::{utility::UtilityModule, LuaModule};
 
 pub struct FFICallModule;
 
@@ -58,13 +58,19 @@ fn acquire_ffi_functions() {
 
 fn lua_call_c_function(
     lua: &Lua,
-    (fun_arg, args, ret_type_name): (LuaValue, Vec<Argument>, Option<String>),
+    (fun_arg, args, ret_type_name, is_safe): (
+        LuaValue,
+        Vec<Argument>,
+        Option<String>,
+        Option<bool>,
+    ),
 ) -> LuaResult<LuaValue> {
     // 读取长整型
     let fun = lua_parse_long_integer(&fun_arg)?;
     // 判断权限
+    let is_safe = is_safe.unwrap_or(true);
     let is_debug = RuntimeModule::is_debug_mode(lua);
-    if is_debug {
+    if is_debug || is_safe {
         MemoryUtils::check_permission_execute(fun as usize).map_err(|e| e.into_lua_err())?;
     }
 
@@ -162,39 +168,13 @@ fn lua_parse_long_integer(value: &LuaValue) -> LuaResult<u64> {
             }
             *v as u64
         }
-        LuaValue::Table(tbl) => read_uint64_value(tbl)?,
+        LuaValue::Table(tbl) => UtilityModule::read_uint64_value(tbl)?,
         _ => {
             return Err(
                 Error::InvalidValue("integer or UInt64", format!("{:?}", value)).into_lua_err(),
             );
         }
     })
-}
-
-/// 从 UInt64 读取值
-fn read_uint64_value(tbl: &LuaTable) -> LuaResult<u64> {
-    // 接收 UInt64 table
-    let mut is_uint64 = false;
-    if let Some(mt) = tbl.metatable() {
-        if let Ok(ty) = mt.get::<String>(LuaMetaMethod::Type.name()) {
-            if ty == "UInt64" {
-                is_uint64 = true;
-            }
-        }
-    }
-    if !is_uint64 {
-        return Err(Error::InvalidValue("UInt64 table", tbl.to_string()?).into_lua_err());
-    }
-
-    let high: u32 = tbl.get("high")?;
-    let low: u32 = tbl.get("low")?;
-    let merged = merge_to_u64(high, low);
-    Ok(merged)
-}
-
-/// 将两个 u32 表示的高低位合并为一个 u64 (LE)
-fn merge_to_u64(high: u32, low: u32) -> u64 {
-    ((high as u64) << 32) | (low as u64)
 }
 
 type AnyVar = *mut c_void;
