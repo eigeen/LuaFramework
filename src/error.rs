@@ -12,6 +12,10 @@ pub enum Error {
     Hook(#[from] mhw_toolkit::game::extra_hooks::HookError),
     #[error("Windows Error: {0}")]
     Windows(#[from] windows::core::Error),
+    #[error("Inline hook error: {0}")]
+    InlineHook(#[from] safetyhook::inline_hook::InlineError),
+    #[error("Mid hook error: {0}")]
+    MidHook(#[from] safetyhook::mid_hook::MidError),
 
     #[error("Memory module error: {0}")]
     Memory(#[from] crate::memory::MemoryError),

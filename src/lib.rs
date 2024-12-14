@@ -9,6 +9,7 @@ use windows::Win32::{
 static MAIN_THREAD_ONCE: Once = Once::new();
 
 mod address;
+mod bootstrap;
 mod error;
 mod extension;
 mod game;
@@ -29,7 +30,7 @@ mod logger {
 
     pub fn init_log() {
         log::set_logger(&*LOGGER).unwrap();
-        log::set_max_level(LevelFilter::Debug);
+        log::set_max_level(LevelFilter::Trace);
     }
 }
 
@@ -39,18 +40,26 @@ fn panic_hook(info: &std::panic::PanicHookInfo) {
 
 fn main_entry() -> anyhow::Result<()> {
     logger::init_log();
-
-    // 设置 panic hook
     std::panic::set_hook(Box::new(panic_hook));
 
-    // 注册扩展
-    let (total, success) = extension::CoreAPI::instance().load_core_exts()?;
-    log::info!("Loaded {total} extensions, {} failed.", total - success);
-    // 初始化资源
+    // 初始化hook等资源
     game::command::init_game_command()?;
+    game::singleton::SingletonManager::instance().initialize()?;
 
-    // 初始加载 LuaVM
-    luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
+    bootstrap::on_post_mh_main_ctor(|| {
+        // 处理单例
+        game::singleton::SingletonManager::instance().parse_singletons();
+
+        // 注册扩展
+        let (total, success) = extension::CoreAPI::instance().load_core_exts()?;
+        log::info!("Loaded {total} extensions, {} failed.", total - success);
+
+        // 初始加载 LuaVM
+        luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
+
+        log::info!("LuaFramework initialized.");
+        Ok(())
+    })?;
 
     Ok(())
 }

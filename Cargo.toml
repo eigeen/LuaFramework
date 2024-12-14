@@ -21,6 +21,7 @@ luaf-include = { path = "./luaf-include" }
 mlua = { workspace = true, features = ["send", "serialize"] }
 
 mhw_toolkit = { path = "../mhw-toolkit", features = ["logger"] }
+safetyhook = { path = "../../safetyhook-pure-rs" }
 windows = { version = "0.58", features = ["Win32_System_SystemServices"] }
 # frida-gum 动态Hook
 frida-gum = { version = "0.15", features = [

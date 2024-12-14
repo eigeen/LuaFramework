@@ -53,23 +53,15 @@ impl AddressRepository {
         Ok(addr)
     }
 
+    /// 获取指定名称的地址（指针形式）
+    pub fn get_ptr<T>(&self, name: &str) -> Result<*mut T> {
+        self.get_address(name).map(|addr| addr as *mut T)
+    }
+
     /// 设置地址记录
     pub fn set_record(&self, record: AddressRecord) {
         let mut inner = self.inner.lock();
         inner.records.insert(record.name.clone(), record);
-    }
-
-    /// 设置地址记录
-    pub fn set_record_direct(&self, name: &str, pattern: &str, offset: isize) {
-        let mut inner = self.inner.lock();
-        inner.records.insert(
-            name.to_string(),
-            AddressRecord {
-                name: name.to_string(),
-                pattern: pattern.to_string(),
-                offset,
-            },
-        );
     }
 
     fn set_record_inner(inner: &mut RepositoryInner, name: &str, pattern: &str, offset: isize) {
@@ -87,13 +79,22 @@ impl AddressRepository {
         let mut inner = RepositoryInner::default();
         Self::set_record_inner(
             &mut inner,
-            "Core:MhMainCtor",
-            "BA 00 00 08 00 48 8B CF E8 ?? ?? ?? ?? 4C 89 3F C7 87 ?? ?? ?? ?? FF FF FF FF",
-            -122,
+            Self::CORE_POST_MH_MAIN_CTOR,
+            "C6 80 23 2C 00 00 01 E8 ?? ?? ?? ?? 48 8B C3",
+            15,
+        );
+        Self::set_record_inner(
+            &mut inner,
+            Self::C_SYSTEM_CTOR,
+            "48 83 C1 08 FF 15 ?? ?? ?? ?? 48 8B C3 C6 43 30 01 48 83 C4 20 5B C3",
+            -19,
         );
 
         Self {
             inner: Mutex::new(inner),
         }
     }
+
+    pub const CORE_POST_MH_MAIN_CTOR: &str = "Core:PostMhMainCtor";
+    pub const C_SYSTEM_CTOR: &str = "cSystem:Ctor";
 }
