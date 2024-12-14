@@ -84,7 +84,7 @@ impl FridaModule {
         lua.load(
             r#"
 for _, handle in pairs(_interceptor_handles) do
-    frida.Interceptor.detach(handle)
+    sdk.Interceptor.detach(handle)
 end"#,
         )
         .exec()?;
@@ -549,7 +549,7 @@ mod tests {
                 r#"
 local hook_ptr = Memory.ptr('0x{func_ptr:x}')
 
-frida.Interceptor.attach(hook_ptr, {{
+sdk.Interceptor.attach(hook_ptr, {{
     on_enter = function(args)
         print(string.format("on_enter: args[0] = %s", tostring(args[0])))
         args[0] = Memory.ptr(10)

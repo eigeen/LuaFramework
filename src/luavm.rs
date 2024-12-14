@@ -151,8 +151,12 @@ impl LuaVMManager {
                 continue;
             }
 
-            let vm = self.create_vm_with_file(&path)?;
-            vms.push(vm.id());
+            match self.create_vm_with_file(&path) {
+                Ok(vm) => vms.push(vm.id()),
+                Err(e) => {
+                    log::error!("Failed to load script '{}': {}", path.display(), e)
+                }
+            }
         }
 
         Ok(vms)
