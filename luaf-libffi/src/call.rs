@@ -177,6 +177,7 @@ pub unsafe extern "C" fn CallCFunction(
 }
 
 #[cfg(test)]
+#[allow(clippy::transmute_int_to_float)]
 mod tests {
     use super::*;
 
@@ -188,6 +189,11 @@ mod tests {
 
     #[inline(never)]
     extern "C" fn test_add(a: i32, b: i32) -> i32 {
+        a + b
+    }
+
+    #[inline(never)]
+    extern "C" fn test_float_add(a: f32, b: f32) -> f32 {
         a + b
     }
 
@@ -224,6 +230,55 @@ mod tests {
 
             assert_eq!(code, 0);
             assert_eq!(ret_val as i32, 3);
+        }
+    }
+
+    #[test]
+    fn test_call_float_add() {
+        init_logging();
+
+        type AnyVar = *mut c_void;
+
+        unsafe {
+            let ptr = test_float_add as *mut c_void;
+            let mut arg_types = vec![
+                ArgType::Float as i32 as AnyVar,
+                ArgType::Float as i32 as AnyVar,
+            ];
+            let arg_types_len = arg_types.len();
+            let mut args = vec![];
+            args.push({
+                let v = std::mem::transmute::<f32, i32>(1.1f32);
+                v as AnyVar
+            });
+            args.push({
+                let v = std::mem::transmute::<f32, i32>(2.2f32);
+                v as AnyVar
+            });
+
+            let args_len = args.len();
+            let ret_type = ArgType::Float as i32;
+            let mut ret_val = std::ptr::null_mut::<c_void>();
+
+            let code = CallCFunction(
+                ptr,
+                arg_types.as_mut_ptr(),
+                arg_types_len,
+                args.as_mut_ptr(),
+                args_len,
+                ret_type,
+                &mut ret_val as *mut *mut c_void,
+            );
+
+            eprintln!("code: {}", code);
+            eprintln!("ret_val: {}", {
+                std::mem::transmute::<i32, f32>(ret_val as i32)
+            });
+            eprintln!("ret_val as f64: {}", {
+                let v = std::mem::transmute::<i32, f32>(ret_val as i32);
+                v as f64
+            });
+            eprintln!("call test_float_add(1.1, 2.2) = {}", test_float_add(1.1, 2.2));
         }
     }
 }

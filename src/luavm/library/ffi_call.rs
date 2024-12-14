@@ -1,13 +1,17 @@
-#![allow(clippy::missing_transmute_annotations, clippy::transmute_float_to_int)]
+#![allow(
+    clippy::missing_transmute_annotations,
+    clippy::transmute_float_to_int,
+    clippy::transmute_int_to_float
+)]
 
-use std::{ffi::c_void, ptr::addr_of_mut};
+use std::ffi::c_void;
 
 use mlua::prelude::*;
 use serde::Deserialize;
 
 use crate::{error::Error, extension::CoreAPI};
 
-use super::{utility::UtilityModule, LuaModule};
+use super::LuaModule;
 
 pub struct FFICallModule;
 
@@ -51,7 +55,7 @@ fn acquire_ffi_functions() {
 }
 
 fn lua_call_c_function(
-    lua: &Lua,
+    _lua: &Lua,
     (fun_arg, args, ret_type_name): (LuaValue, Vec<Argument>, Option<String>),
 ) -> LuaResult<LuaValue> {
     // 读取长整型
@@ -80,13 +84,13 @@ fn lua_call_c_function(
         .collect::<Vec<_>>();
     let mut ffi_arg_values = ffi_args.iter_mut().map(|arg| arg.value).collect::<Vec<_>>();
 
-    log::debug!("Starting ffi call");
-    log::debug!("fun = 0x{:x}", fun);
-    log::debug!("ffi_arg_types = {:?}", ffi_arg_types);
-    log::debug!("ffi_arg_values = {:?}", ffi_arg_values);
+    log::trace!("Starting ffi call");
+    log::trace!("fun = 0x{:x}", fun);
+    log::trace!("ffi_arg_types = {:?}", ffi_arg_types);
+    log::trace!("ffi_arg_values = {:?}", ffi_arg_values);
 
     // 调用函数
-    let Some(ret_type) = ret_type else {
+    if ret_type.is_none() {
         // 无返回值
         let mut ret_val = std::ptr::null_mut::<c_void>();
         unsafe {
@@ -101,34 +105,44 @@ fn lua_call_c_function(
             );
         }
         return Ok(LuaNil);
-    };
-    Ok(LuaNil)
-    // let mut ret_value = LuaNil;
-    // if let Some(ret_type) = ret_type {
-    //     if ret_type.is_integer() {
-    //         // 整数类型可使用64长度容器接收
-    //         let ret_raw = call::call_c_function::<i64>(fun as *const _, &args);
-    //         // 转换为Lua时判断是否可能溢出
-    //         if ret_type.is_safe_to_lua() {
-    //             ret_value = LuaValue::Integer(ret_raw);
-    //         } else {
-    //             let tbl = uint64_new(lua, ret_raw as u64)?;
-    //             ret_value = LuaValue::Table(tbl);
-    //         }
-    //     } else if let call::Argument::Float(_) = ret_type {
-    //         let ret_raw = call::call_c_function::<f32>(fun as *const _, &args);
-    //         ret_value = LuaValue::Number(ret_raw as f64);
-    //     } else if let call::Argument::Double(_) = ret_type {
-    //         let ret_raw = call::call_c_function::<f64>(fun as *const _, &args);
-    //         ret_value = LuaValue::Number(ret_raw as f64);
-    //     } else {
-    //         unreachable!()
-    //     }
-    // } else {
-    //     call::call_c_function::<()>(fun as *const _, &args);
-    // }
+    }
 
-    // Ok(ret_value)
+    let ret_type = ret_type.unwrap();
+    // 有返回值
+    let ffi_ret_type = ret_type.as_ffi_type();
+    let mut ret_val = std::ptr::null_mut::<c_void>();
+    unsafe {
+        call_c_function(
+            fun as *mut _,
+            ffi_arg_types.as_mut_ptr(),
+            ffi_arg_types.len(),
+            ffi_arg_values.as_mut_ptr(),
+            ffi_arg_values.len(),
+            ffi_ret_type as i32,
+            &mut ret_val as *mut *mut c_void,
+        );
+    }
+
+    match ffi_ret_type {
+        FFIArgType::Void => Ok(LuaNil),
+        FFIArgType::UInt8
+        | FFIArgType::Sint8
+        | FFIArgType::UInt16
+        | FFIArgType::Sint16
+        | FFIArgType::UInt32
+        | FFIArgType::Sint32
+        | FFIArgType::UInt64
+        | FFIArgType::Sint64
+        | FFIArgType::Pointer => Ok(LuaValue::Integer(ret_val as i64)),
+        FFIArgType::Float => {
+            let container: f32 = unsafe { std::mem::transmute(ret_val as i32) };
+            Ok(LuaValue::Number(container as f64))
+        }
+        FFIArgType::Double => {
+            let val: f64 = unsafe { std::mem::transmute(ret_val) };
+            Ok(LuaValue::Number(val))
+        }
+    }
 }
 
 /// 解析 Lua 整数值
@@ -238,30 +252,6 @@ enum FFIArgType {
     Double = 10,
     Pointer = 11,
 }
-
-// impl From<Argument> for FFIArg {
-//     fn from(value: Argument) -> Self {
-//         let value_ref = match value {
-//             Argument::Void => std::ptr::null_mut(),
-//             Argument::UInt8(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Sint8(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::UInt16(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Sint16(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::UInt32(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Sint32(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::UInt64(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Sint64(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Float(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Double(mut v) => &mut v as *mut _ as *mut c_void,
-//             Argument::Pointer(mut v) => &mut v as *mut _ as *mut c_void,
-//         };
-
-//         FFIArg {
-//             ty: value,
-//             value: value_ref,
-//         }
-//     }
-// }
 
 #[derive(Debug, Clone, Deserialize)]
 #[serde(rename_all = "lowercase")]
