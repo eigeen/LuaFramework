@@ -24,6 +24,7 @@ file_src_dst = [
         "dst": "lua_framework/extensions/luaf_libffi.dll",
     },
     {"type": "create_dir", "dst": "lua_framework/scripts"},
+    {"type": "dir", "src": "scripts/_framework", "dst": "lua_framework/scripts/_framework"}
 ]
 
 for src_dst in file_src_dst:

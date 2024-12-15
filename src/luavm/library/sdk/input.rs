@@ -6,9 +6,6 @@ use crate::{
     luavm::library::LuaModule,
 };
 
-const KEYCODE_LUA_MODULE: &str = include_str!("input_keycode.lua");
-const CONTROLLER_BUTTON_LUA_MODULE: &str = include_str!("input_controller_button.lua");
-
 pub struct InputModule;
 
 impl LuaModule for InputModule {
@@ -34,12 +31,6 @@ impl LuaModule for InputModule {
 
         registry.set("Input", input_table)?;
 
-        // 注册枚举值
-        registry.set("KeyCode", lua.load(KEYCODE_LUA_MODULE).eval::<LuaTable>()?)?;
-        registry.set(
-            "ControllerButton",
-            lua.load(CONTROLLER_BUTTON_LUA_MODULE).eval::<LuaTable>()?,
-        )?;
         Ok(())
     }
 }

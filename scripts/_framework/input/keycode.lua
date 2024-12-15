@@ -1,4 +1,3 @@
--- 按键值枚举
 local KeyCode = {
     Escape = 1,
     D1 = 2,

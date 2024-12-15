@@ -1,4 +1,3 @@
--- 按键值枚举
 local ControllerButton = {
     Share = 0x0001,
     L3 = 0x0002,
