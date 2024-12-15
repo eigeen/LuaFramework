@@ -30,6 +30,14 @@ impl LuaModule for RuntimeModule {
         unsafe {
             core_table.set("get_state_ptr", lua.create_c_function(lua_get_state_ptr)?)?;
         }
+        // 设置on_update回调
+        core_table.set(
+            "on_update",
+            lua.create_function(|lua, fun: LuaFunction| {
+                lua.globals().set("_on_update", fun)?;
+                Ok(())
+            })?,
+        )?;
 
         registry.set("core", core_table)?;
 

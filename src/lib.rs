@@ -58,6 +58,11 @@ fn main_entry() -> anyhow::Result<()> {
         // 初始加载 LuaVM
         luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
 
+        // 设置 on_update 回调
+        game::on_update::on_map_clock_local(|| {
+            luavm::LuaVMManager::instance().trigger_on_update()
+        })?;
+
         log::info!("LuaFramework initialized.");
         Ok(())
     })?;

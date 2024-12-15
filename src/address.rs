@@ -89,6 +89,12 @@ impl AddressRepository {
             "48 83 C1 08 FF 15 ?? ?? ?? ?? 48 8B C3 C6 43 30 01 48 83 C4 20 5B C3",
             -19,
         );
+        Self::set_record_inner(
+            &mut inner,
+            Self::CORE_MAP_CLOCK_LOCAL,
+            "E8 ?? ?? ?? ?? 48 8B 4B 08 0F 57 FF 48 8B",
+            -32,
+        );
 
         Self {
             inner: Mutex::new(inner),
@@ -96,5 +102,6 @@ impl AddressRepository {
     }
 
     pub const CORE_POST_MH_MAIN_CTOR: &str = "Core:PostMhMainCtor";
+    pub const CORE_MAP_CLOCK_LOCAL: &str = "Core::MapClockLocal";
     pub const C_SYSTEM_CTOR: &str = "cSystem:Ctor";
 }

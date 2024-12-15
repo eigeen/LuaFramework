@@ -11,4 +11,4 @@ shutil.copy(
     "target/release/luaf_libffi.dll",
     "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/extensions/luaf_libffi.dll",
 )
-shutil.copytree("scripts/_framework", "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/scripts/_framework")
+shutil.copytree("scripts/_framework", "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/scripts/_framework", dirs_exist_ok=True)

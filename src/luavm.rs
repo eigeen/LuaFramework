@@ -102,6 +102,10 @@ impl LuaVMManager {
         Ok(luavm_shared)
     }
 
+    pub fn inner(&self) -> &Mutex<LuaVMManagerInner> {
+        &self.inner
+    }
+
     /// 获取虚拟机
     pub fn get_vm(&self, id: LuaVMId) -> Option<SharedLuaVM> {
         let inner = self.inner.lock();
@@ -178,16 +182,37 @@ impl LuaVMManager {
     pub fn get_id_from_lua(lua: &Lua) -> LuaResult<LuaVMId> {
         lua.globals().get("_id")
     }
+
+    pub fn trigger_on_update(&self) {
+        let inner = self.inner.lock();
+        for luavm in inner.vms.values() {
+            let globals = luavm.lua().globals();
+            let Ok(on_update) = globals.get::<LuaFunction>("_on_update") else {
+                continue;
+            };
+            if let Err(e) = on_update.call::<()>(()) {
+                log::error!(
+                    "Failed to trigger on_update in LuaVM({}) with error: {}",
+                    luavm.get_name(),
+                    e
+                );
+            };
+        }
+    }
 }
 
 #[derive(Default)]
-struct LuaVMManagerInner {
+pub struct LuaVMManagerInner {
     vms: HashMap<LuaVMId, SharedLuaVM>,
     /// 记录虚拟机脚本路径到id的映射
     vm_paths: HashMap<String, LuaVMId>,
 }
 
 impl LuaVMManagerInner {
+    pub fn luavms(&self) -> &HashMap<LuaVMId, SharedLuaVM> {
+        &self.vms
+    }
+
     fn add_vm(&mut self, id: LuaVMId, path: &str, vm: SharedLuaVM) {
         self.vms.insert(id, vm);
         self.vm_paths.insert(path.to_string(), id);
@@ -274,6 +299,10 @@ impl LuaVM {
         globals.set("_id", self.id)?;
         globals.set("_path", self.path.clone())?;
         globals.set("_name", self.get_name())?;
+        // 设置模块搜索路径
+        self.lua
+            .load(r#"package.path = package.path .. ";lua_framework/scripts/?.lua""#)
+            .exec()?;
 
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
         library::sdk::SdkModule::register_library(&self.lua, &globals)?;
