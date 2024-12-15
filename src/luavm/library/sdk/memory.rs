@@ -6,11 +6,7 @@ use crate::{
     memory::MemoryUtils,
 };
 
-use super::LuaModule;
-
-mod luaptr;
-
-pub use luaptr::LuaPtr;
+use super::{luaptr::LuaPtr, LuaModule};
 
 pub struct MemoryModule;
 
@@ -18,10 +14,6 @@ impl LuaModule for MemoryModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
         // Memory
         let memory = lua.create_table()?;
-        memory.set(
-            "ptr",
-            lua.create_function(|_, ptr: LuaValue| LuaPtr::from_lua(ptr))?,
-        )?;
         memory.set(
             "scan",
             lua.create_function(

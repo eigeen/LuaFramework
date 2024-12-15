@@ -13,7 +13,10 @@ use mlua::prelude::*;
 use parking_lot::Mutex;
 use rand::RngCore;
 
-use super::{memory, sdk::SdkModule, LuaModule};
+use super::{
+    sdk::{luaptr::LuaPtr, SdkModule},
+    LuaModule,
+};
 use crate::{
     error::{Error, Result},
     luavm::{LuaVMManager, WeakLuaVM},
@@ -37,7 +40,7 @@ impl LuaModule for FridaModule {
             "attach",
             lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
                 // 尝试以 LuaPtr 类型解析 hook_ptr
-                let ptr = memory::LuaPtr::from_lua(hook_ptr)?;
+                let ptr = LuaPtr::from_lua(hook_ptr)?;
                 // 安全检查
                 MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
 
@@ -189,7 +192,7 @@ unsafe impl<'a> Sync for InterceptorArgs<'a> {}
 impl<'a> LuaUserData for InterceptorArgs<'a> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
         // methods.add_method("get", |lua, this, index: u32| {
-        //     let ptr = memory::LuaPtr::from_u64(this.context.arg(index) as u64);
+        //     let ptr = LuaPtr::from_u64(this.context.arg(index) as u64);
         //     ptr.into_lua(lua)
         // });
         methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
@@ -200,7 +203,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
                     // TODO: 更好的精度处理
                     if this.is_enter {
                         // 获取参数值
-                        let ptr = memory::LuaPtr::new(this.context.arg(key) as u64);
+                        let ptr = LuaPtr::new(this.context.arg(key) as u64);
                         Ok(ptr.into_lua(lua)?)
                     } else {
                         // on_leave 不允许数字索引
@@ -216,7 +219,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
                                     "on_enter callback can not get retval",
                                 ));
                             }
-                            let ptr = memory::LuaPtr::new(this.context.return_value() as u64);
+                            let ptr = LuaPtr::new(this.context.return_value() as u64);
                             Ok(ptr.into_lua(lua)?)
                         }
                         other => {
@@ -254,7 +257,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
                                     value.to_string()?,
                                 )));
                             };
-                            let ptr = ud.borrow::<memory::LuaPtr>()?;
+                            let ptr = ud.borrow::<LuaPtr>()?;
                             let ptr_val = ptr.to_u64();
 
                             this.context.set_arg(key, ptr_val as usize);
@@ -275,7 +278,7 @@ impl<'a> LuaUserData for InterceptorArgs<'a> {
                                         "on_enter callback can not set retval",
                                     ));
                                 }
-                                let ptr = memory::LuaPtr::from_lua(value)?;
+                                let ptr = LuaPtr::from_lua(value)?;
                                 let val_u64 = ptr.to_u64();
                                 this.context.set_return_value(val_u64 as usize);
                             }

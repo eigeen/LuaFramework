@@ -2,9 +2,11 @@ use mlua::prelude::*;
 
 use crate::{error::Error, game::singleton::SingletonManager};
 
-use super::{memory::LuaPtr, LuaModule};
+use super::LuaModule;
 
-mod input;
+pub mod input;
+pub mod luaptr;
+pub mod memory;
 
 pub struct SdkModule;
 
@@ -16,12 +18,16 @@ impl LuaModule for SdkModule {
             lua.create_function(|_, name: String| {
                 SingletonManager::instance()
                     .get_address(&name)
-                    .map(|addr| LuaPtr::new(addr as u64))
+                    .map(|addr| luaptr::LuaPtr::new(addr as u64))
                     .ok_or(Error::SingletonNotFound(name).into_lua_err())
             })?,
         )?;
         // input子模块
         input::InputModule::register_library(lua, &sdk_table)?;
+        // memory子模块
+        memory::MemoryModule::register_library(lua, &sdk_table)?;
+        // 注册luaptr到sdk模块
+        luaptr::LuaPtr::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())

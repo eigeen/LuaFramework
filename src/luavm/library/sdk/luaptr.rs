@@ -2,6 +2,7 @@ use mlua::prelude::*;
 
 use crate::error::{Error, Result};
 
+use crate::luavm::library::LuaModule;
 use crate::{
     luavm::library::{runtime::RuntimeModule, utility::UtilityModule},
     memory::MemoryUtils,
@@ -13,6 +14,16 @@ use crate::{
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub struct LuaPtr {
     inner: u64,
+}
+
+impl LuaModule for LuaPtr {
+    fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
+        registry.set(
+            "LuaPtr",
+            lua.create_function(|_, value| LuaPtr::from_lua(value))?,
+        )?;
+        Ok(())
+    }
 }
 
 impl LuaUserData for LuaPtr {

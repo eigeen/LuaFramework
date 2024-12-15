@@ -305,9 +305,8 @@ impl LuaVM {
             .exec()?;
 
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
-        library::sdk::SdkModule::register_library(&self.lua, &globals)?;
         library::utility::UtilityModule::register_library(&self.lua, &globals)?;
-        library::memory::MemoryModule::register_library(&self.lua, &globals)?;
+        library::sdk::SdkModule::register_library(&self.lua, &globals)?;
         library::frida::FridaModule::register_library(&self.lua, &globals)?;
         library::ffi_call::FFICallModule::register_library(&self.lua, &globals)?;
 
