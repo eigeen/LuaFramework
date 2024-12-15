@@ -4,6 +4,8 @@ use crate::{error::Error, game::singleton::SingletonManager};
 
 use super::LuaModule;
 
+pub mod ffi_call;
+pub mod frida;
 pub mod input;
 pub mod luaptr;
 pub mod memory;
@@ -31,15 +33,12 @@ impl LuaModule for SdkModule {
         luaptr::LuaPtr::register_library(lua, &sdk_table)?;
         // string子模块
         string::StringModule::register_library(lua, &sdk_table)?;
+        // frida子模块
+        frida::FridaModule::register_library(lua, &sdk_table)?;
+        // ffi_call子模块
+        ffi_call::FFICallModule::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())
-    }
-}
-
-impl SdkModule {
-    /// 从 Lua 环境中获取 sdk 模块的 Table
-    pub fn get_from_lua(lua: &Lua) -> LuaResult<LuaTable> {
-        lua.globals().get("sdk")
     }
 }

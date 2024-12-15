@@ -63,7 +63,7 @@ impl LuaUserData for ManagedString {
             Ok(lua.create_string(&this.data))
         });
         // 长度（字节）
-        methods.add_method("len", |lua, this, ()| Ok(this.data().len()));
+        methods.add_method("len", |_, this, ()| Ok(this.data().len()));
         // 编码为字节数组
         methods.add_method("encode", |lua, this, ()| {
             let bytes = this.to_bytes_with_nul();

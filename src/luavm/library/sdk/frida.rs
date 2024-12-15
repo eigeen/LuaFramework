@@ -13,13 +13,10 @@ use mlua::prelude::*;
 use parking_lot::Mutex;
 use rand::RngCore;
 
-use super::{
-    sdk::{luaptr::LuaPtr, SdkModule},
-    LuaModule,
-};
+use super::luaptr::LuaPtr;
 use crate::{
     error::{Error, Result},
-    luavm::{LuaVMManager, WeakLuaVM},
+    luavm::{library::LuaModule, LuaVMManager, WeakLuaVM},
     memory::MemoryUtils,
 };
 
@@ -27,13 +24,10 @@ static GUM: LazyLock<Gum> = LazyLock::new(Gum::obtain);
 static INTERCEPTOR: LazyLock<Mutex<InterceptorSend>> =
     LazyLock::new(|| Mutex::new(InterceptorSend(Interceptor::obtain(&GUM))));
 
-#[derive(Default)]
-pub struct FridaModule {}
+pub struct FridaModule;
 
 impl LuaModule for FridaModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
-        let sdk_table = SdkModule::get_from_lua(lua)?;
-
         // Interceptor
         let interceptor_table = lua.create_table()?;
         interceptor_table.set(
@@ -75,9 +69,10 @@ impl LuaModule for FridaModule {
             })?,
         )?;
 
-        sdk_table.set("Interceptor", interceptor_table)?;
+        registry.set("Interceptor", interceptor_table)?;
 
-        registry.set("_interceptor_handles", lua.create_table()?)?;
+        lua.globals()
+            .set("_interceptor_handles", lua.create_table()?)?;
         Ok(())
     }
 }

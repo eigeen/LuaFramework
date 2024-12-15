@@ -1,5 +1,3 @@
-pub mod ffi_call;
-pub mod frida;
 pub mod runtime;
 pub mod sdk;
 pub mod utility;
