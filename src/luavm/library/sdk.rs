@@ -7,6 +7,7 @@ use super::LuaModule;
 pub mod input;
 pub mod luaptr;
 pub mod memory;
+pub mod string;
 
 pub struct SdkModule;
 
@@ -28,6 +29,8 @@ impl LuaModule for SdkModule {
         memory::MemoryModule::register_library(lua, &sdk_table)?;
         // 注册luaptr到sdk模块
         luaptr::LuaPtr::register_library(lua, &sdk_table)?;
+        // string子模块
+        string::StringModule::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())
