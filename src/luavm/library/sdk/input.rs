@@ -12,22 +12,44 @@ impl LuaModule for InputModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
         // Input
         let input_table = lua.create_table()?;
+
+        let key_table = lua.create_table()?;
         // 键盘按键是否被点击
-        input_table.set(
-            "is_key_pressed",
+        key_table.set(
+            "is_pressed",
             lua.create_function(|lua, key: LuaValue| {
                 let key_code = parse_key(lua, key)?;
                 Ok(Input::instance().keyboard().is_pressed(key_code))
             })?,
         )?;
+        // 键盘按键是否被按下
+        key_table.set(
+            "is_down",
+            lua.create_function(|lua, key: LuaValue| {
+                let key_code = parse_key(lua, key)?;
+                Ok(Input::instance().keyboard().is_down(key_code))
+            })?,
+        )?;
+        input_table.set("keyboard", key_table)?;
+
+        let controller_table = lua.create_table()?;
         // 手柄按键是否被点击
-        input_table.set(
-            "is_controller_pressed",
+        controller_table.set(
+            "is_pressed",
             lua.create_function(|lua, key: LuaValue| {
                 let key_code = parse_controller(lua, key)?;
                 Ok(Input::instance().controller().is_pressed(key_code))
             })?,
         )?;
+        // 手柄按键是否被按下
+        controller_table.set(
+            "is_down",
+            lua.create_function(|lua, key: LuaValue| {
+                let key_code = parse_controller(lua, key)?;
+                Ok(Input::instance().controller().is_down(key_code))
+            })?,
+        )?;
+        input_table.set("controller", controller_table)?;
 
         registry.set("Input", input_table)?;
 
