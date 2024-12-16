@@ -1,24 +1,24 @@
-use std::{
-    cell::RefCell,
-    collections::HashMap,
-    ffi::c_void,
-    sync::{Arc, LazyLock},
-};
+use std::{collections::HashMap, ffi::c_void, sync::LazyLock};
 
 use frida_gum::{
-    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener, PointCut},
+    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener},
     Gum, NativePointer,
 };
+use inline::InlineInterceptor;
 use mlua::prelude::*;
 use parking_lot::Mutex;
 use rand::RngCore;
+use serde::{Deserialize, Serialize};
 
 use super::luaptr::LuaPtr;
 use crate::{
     error::{Error, Result},
-    luavm::{library::LuaModule, LuaVMManager, WeakLuaVM},
+    luavm::library::LuaModule,
     memory::MemoryUtils,
 };
+
+mod inline;
+mod mid;
 
 static GUM: LazyLock<Gum> = LazyLock::new(Gum::obtain);
 static INTERCEPTOR: LazyLock<Mutex<InterceptorSend>> =
@@ -38,11 +38,11 @@ impl LuaModule for FridaModule {
                 // 安全检查
                 MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
 
-                let interceptor = LuaInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
-                let handle = interceptor.handle;
+                let interceptor = InlineInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
+                let handle = interceptor.handle();
                 InterceptorDispatcher::instance()
                     .lock()
-                    .add_hook(interceptor)
+                    .add_inline(interceptor)
                     .map_err(LuaError::external)?;
 
                 // 记录句柄，以便后续移除
@@ -90,234 +90,46 @@ end"#,
     }
 }
 
-/// Interceptor Lua 接口封装
-struct LuaInterceptor {
-    handle: InterceptorHandle,
-    hook_ptr: usize,
-    vm_ref: WeakLuaVM,
-    on_enter: Option<LuaFunction>,
-    on_leave: Option<LuaFunction>,
-}
-
-impl LuaInterceptor {
-    fn new(hook_ptr: usize, weak: WeakLuaVM) -> Self {
-        Self {
-            handle: InterceptorHandle::new(),
-            hook_ptr,
-            vm_ref: weak,
-            on_enter: None,
-            on_leave: None,
-        }
-    }
-
-    fn new_with_params(lua: &Lua, hook_ptr: usize, params: &LuaTable) -> LuaResult<Self> {
-        let Some(luavm) = LuaVMManager::instance().get_vm_by_lua(lua) else {
-            return Err(LuaError::external("Internal: invalid lua vm"));
-        };
-        let weak = Arc::downgrade(&luavm);
-
-        let mut interceptor = LuaInterceptor::new(hook_ptr, weak);
-
-        if let Ok(on_enter) = params.get::<LuaFunction>("on_enter") {
-            interceptor.set_on_enter(on_enter);
-        }
-        if let Ok(on_leave) = params.get::<LuaFunction>("on_leave") {
-            interceptor.set_on_leave(on_leave);
-        }
-
-        Ok(interceptor)
-    }
-
-    fn set_on_enter(&mut self, func: LuaFunction) {
-        self.on_enter = Some(func);
-    }
-
-    fn set_on_leave(&mut self, func: LuaFunction) {
-        self.on_leave = Some(func);
-    }
-}
-
 /// Interceptor 句柄，用于获取原始信息。
 ///
 /// 由于同一个 Hook 点位可能会设置多个 Interceptor，
 /// 为了优化，此处使用 id 标记用户回调，避免重复设置 Hook。
-#[repr(transparent)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-struct InterceptorHandle(pub u32);
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+enum InterceptorHandle {
+    Inline(u32),
+    Mid(u32),
+}
 
 impl IntoLua for InterceptorHandle {
     fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
-        let id = self.0 as i64;
-        id.into_lua(lua)
+        lua.to_value(&self)
     }
 }
 
 impl FromLua for InterceptorHandle {
     fn from_lua(value: LuaValue, lua: &Lua) -> LuaResult<Self> {
-        let id = i64::from_lua(value, lua)?;
-        if id < 0 || id > u32::MAX as i64 {
-            return Err(LuaError::external("invalid interceptor id"));
-        }
-
-        Ok(Self(id as u32))
+        lua.from_value(value)
     }
 }
 
 impl InterceptorHandle {
-    fn new() -> Self {
-        InterceptorHandle(rand::thread_rng().next_u32())
+    fn new_inline() -> Self {
+        InterceptorHandle::Inline(rand::thread_rng().next_u32())
     }
-}
 
-thread_local! {
-    static ARGS_LOCAL_VARS: RefCell<HashMap<String, LuaValue>> = RefCell::new(HashMap::new());
-}
-
-/// Lua 回调传入参数封装
-struct InterceptorArgs<'a> {
-    /// 原始上下文
-    context: &'a InvocationContext<'a>,
-    /// 是否是 on_enter 回调，决定需要处理的参数
-    is_enter: bool,
-}
-
-unsafe impl<'a> Send for InterceptorArgs<'a> {}
-unsafe impl<'a> Sync for InterceptorArgs<'a> {}
-
-impl<'a> LuaUserData for InterceptorArgs<'a> {
-    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
-        // methods.add_method("get", |lua, this, index: u32| {
-        //     let ptr = LuaPtr::from_u64(this.context.arg(index) as u64);
-        //     ptr.into_lua(lua)
-        // });
-        methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
-            let index_key: IndexKey = key.into();
-
-            match index_key {
-                IndexKey::Int(key) => {
-                    // TODO: 更好的精度处理
-                    if this.is_enter {
-                        // 获取参数值
-                        let ptr = LuaPtr::new(this.context.arg(key) as u64);
-                        Ok(ptr.into_lua(lua)?)
-                    } else {
-                        // on_leave 不允许数字索引
-                        Ok(LuaNil)
-                    }
-                }
-                IndexKey::Str(key) => {
-                    // 内部保留关键字key
-                    match key.as_ref() {
-                        "retval" => {
-                            if this.is_enter {
-                                return Err(LuaError::external(
-                                    "on_enter callback can not get retval",
-                                ));
-                            }
-                            let ptr = LuaPtr::new(this.context.return_value() as u64);
-                            Ok(ptr.into_lua(lua)?)
-                        }
-                        other => {
-                            let value =
-                                ARGS_LOCAL_VARS.with(|map| map.borrow().get(other).cloned());
-                            let value = value.unwrap_or(LuaNil);
-                            Ok(value)
-                        }
-                    }
-                }
-                IndexKey::Other(key) => {
-                    // 从 thread_local 缓存中获取局部变量
-                    let var_key = Self::get_thread_local_var_key(&key)?;
-                    let value = ARGS_LOCAL_VARS.with(|map| map.borrow().get(&var_key).cloned());
-
-                    let value = value.unwrap_or(LuaNil);
-                    Ok(value)
-                }
-            }
-        });
-        methods.add_meta_method(
-            LuaMetaMethod::NewIndex,
-            |_lua, this, (key, value): (LuaValue, LuaValue)| {
-                let index_key: IndexKey = key.into();
-
-                match index_key {
-                    IndexKey::Int(key) => {
-                        // 设置参数值
-                        if this.is_enter {
-                            // TODO: 设置参数值
-                            // value 应为 [LuaPtr]
-                            let LuaValue::UserData(ud) = value else {
-                                return Err(LuaError::external(Error::InvalidValue(
-                                    "LuaPtr",
-                                    value.to_string()?,
-                                )));
-                            };
-                            let ptr = ud.borrow::<LuaPtr>()?;
-                            let ptr_val = ptr.to_u64();
-
-                            this.context.set_arg(key, ptr_val as usize);
-                            Ok(())
-                        } else {
-                            // on_leave 不允许数字索引
-                            Err(LuaError::external(
-                                "modify arg value in on_leave callback is not allowed",
-                            ))
-                        }
-                    }
-                    IndexKey::Str(key) => {
-                        // 内部保留关键字key
-                        match key.as_ref() {
-                            "retval" => {
-                                if this.is_enter {
-                                    return Err(LuaError::external(
-                                        "on_enter callback can not set retval",
-                                    ));
-                                }
-                                let ptr = LuaPtr::from_lua(value)?;
-                                let val_u64 = ptr.to_u64();
-                                this.context.set_return_value(val_u64 as usize);
-                            }
-                            _ => {
-                                // 设置用户局部变量处理
-                                ARGS_LOCAL_VARS.with(|map| map.borrow_mut().insert(key, value));
-                            }
-                        }
-                        Ok(())
-                    }
-                    IndexKey::Other(key) => {
-                        // 设置用户局部变量处理
-                        let var_key = Self::get_thread_local_var_key(&key)?;
-                        ARGS_LOCAL_VARS.with(|map| map.borrow_mut().insert(var_key, value));
-                        Ok(())
-                    }
-                }
-            },
-        );
+    fn new_mid() -> Self {
+        InterceptorHandle::Mid(rand::thread_rng().next_u32())
     }
-}
 
-impl<'a> InterceptorArgs<'a> {
-    fn new_enter(context: &'a InvocationContext) -> Self {
-        Self {
-            context,
-            is_enter: true,
+    fn id(&self) -> u32 {
+        match self {
+            InterceptorHandle::Inline(id) => *id,
+            InterceptorHandle::Mid(id) => *id,
         }
     }
-
-    fn new_leave(context: &'a InvocationContext) -> Self {
-        Self {
-            context,
-            is_enter: false,
-        }
-    }
-
-    fn get_thread_local_var_key(value: &LuaValue) -> LuaResult<String> {
-        let type_name = value.type_name();
-        let key_str = value.to_string()?;
-        Ok(format!("{}:{}", type_name, key_str))
-    }
 }
 
+/// Lua Indexing 参数类型
 enum IndexKey {
     Int(u32),
     Str(String),
@@ -367,7 +179,7 @@ unsafe impl Send for ListenerGuard {}
 unsafe impl Sync for ListenerGuard {}
 
 impl ListenerGuard {
-    pub fn new(listener: Listener, _hook_ptr: usize) -> Self {
+    pub fn new(listener: Listener) -> Self {
         Self { listener }
     }
 }
@@ -384,10 +196,9 @@ struct InterceptorDispatcher {
     /// listeners: 记录被hook的Listener的指针和Listener的映射
     listeners: HashMap<usize, ListenerGuard>,
     /// handle -> interceptor
-    interceptors: HashMap<InterceptorHandle, LuaInterceptor>,
+    interceptors: HashMap<InterceptorHandle, InlineInterceptor>,
     /// hook_ptr -> []handle
     hook_handles: HashMap<usize, Vec<InterceptorHandle>>,
-    // interceptor_records: HashMap<InterceptorHandle, Vec<>>,
 }
 
 impl InterceptorDispatcher {
@@ -397,9 +208,9 @@ impl InterceptorDispatcher {
         &INSTANCE
     }
 
-    fn add_hook(&mut self, interceptor: LuaInterceptor) -> Result<InterceptorHandle> {
-        let hook_ptr = interceptor.hook_ptr;
-        let hook_handle = interceptor.handle;
+    fn add_inline(&mut self, interceptor: InlineInterceptor) -> Result<InterceptorHandle> {
+        let hook_ptr = interceptor.hook_ptr();
+        let hook_handle = interceptor.handle();
 
         // 已有hook，添加引用后返回
         if let Some(_listener) = self.listeners.get(&hook_ptr) {
@@ -418,7 +229,7 @@ impl InterceptorDispatcher {
             .attach(NativePointer(hook_ptr as *mut c_void), &mut my_listener)
             .map_err(|e| Error::Frida(e.to_string()))?;
 
-        let wrapped_listener = ListenerGuard::new(listener, hook_ptr);
+        let wrapped_listener = ListenerGuard::new(listener);
         self.listeners.insert(hook_ptr, wrapped_listener);
         self.interceptors.insert(hook_handle, interceptor);
         self.hook_handles
@@ -434,7 +245,7 @@ impl InterceptorDispatcher {
             return false;
         };
 
-        let hook_ptr = interceptor.hook_ptr;
+        let hook_ptr = interceptor.hook_ptr();
 
         let mut is_release_vec = false;
         if let Some(hook_handles) = self.hook_handles.get_mut(&hook_ptr) {
@@ -463,7 +274,7 @@ impl InterceptorDispatcher {
         for handle in handles {
             if let Err(e) = self.invoke_lua_callback(handle, context) {
                 // TODO: 对lua虚拟机失效的情况进行处理
-                log::error!("invoke frida callback error ({}): {}", handle.0, e);
+                log::error!("invoke frida callback error ({:x}): {}", handle.id(), e);
             }
         }
     }
@@ -474,29 +285,8 @@ impl InterceptorDispatcher {
         context: &InvocationContext,
     ) -> Result<()> {
         if let Some(interceptor) = self.interceptors.get(handle) {
-            let Some(luavm) = interceptor.vm_ref.upgrade() else {
-                return Err(Error::LuaVMNotFound);
-            };
-
-            let lua_callback = match context.point_cut() {
-                PointCut::Enter => &interceptor.on_enter,
-                PointCut::Leave => &interceptor.on_leave,
-            };
-
-            if let Some(lua_callback) = lua_callback {
-                let lua = luavm.lua();
-                lua.scope(|scope| {
-                    let args = match context.point_cut() {
-                        PointCut::Enter => InterceptorArgs::new_enter(context),
-                        PointCut::Leave => InterceptorArgs::new_leave(context),
-                    };
-                    let args_ud = scope.create_userdata(args)?;
-
-                    lua_callback.call::<()>(args_ud)
-                })?;
-            }
+            interceptor.invoke_callback(context)?;
         }
-
         Ok(())
     }
 
@@ -525,7 +315,7 @@ impl InvocationListener for MyListener {
 mod tests {
     use super::*;
 
-    use crate::tests::init_logging;
+    use crate::{luavm::LuaVMManager, tests::init_logging};
 
     extern "C" fn test_add(a: i32, b: i32) -> i32 {
         a + b

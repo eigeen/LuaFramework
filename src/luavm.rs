@@ -249,7 +249,11 @@ impl Drop for LuaVM {
         log::debug!("Removing LuaVM({}) frida hooks", self.id.0);
         let result = library::sdk::frida::FridaModule::remove_all_hooks(&self.lua);
         if let Err(e) = result {
-            log::error!("Failed to remove LuaVM({}) frida hooks: {}", self.id.0, e);
+            log::error!(
+                "Failed to remove LuaVM({}) frida inline hooks: {}",
+                self.get_name(),
+                e
+            );
         }
 
         log::debug!("LuaVM({}) removed", self.id.0);
