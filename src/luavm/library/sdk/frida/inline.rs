@@ -112,14 +112,13 @@ unsafe impl<'a> Sync for InlineEnterArgs<'a> {}
 
 impl<'a> LuaUserData for InlineEnterArgs<'a> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
-        methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
+        methods.add_meta_method(LuaMetaMethod::Index, |_lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();
 
             match index_key {
                 IndexKey::Int(key) => {
                     // 获取位置参数
-                    let ptr = LuaPtr::new(this.context.arg(key) as u64);
-                    Ok(ptr.into_lua(lua)?)
+                    Ok(LuaValue::Integer(this.context.arg(key) as i64))
                 }
                 IndexKey::Str(key) => {
                     // 内部保留关键字key

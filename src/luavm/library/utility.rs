@@ -47,11 +47,6 @@ impl LuaModule for UtilityModule {
 }
 
 impl UtilityModule {
-    /// 从 Lua 环境中获取 utils 模块
-    pub fn get_from_lua(lua: &Lua) -> LuaResult<LuaTable> {
-        lua.globals().get::<LuaTable>("utils")
-    }
-
     /// 将两个 u32 表示的高低位合并为一个 u64 (LE)
     pub fn merge_to_u64(high: u32, low: u32) -> u64 {
         ((high as u64) << 32) | (low as u64)

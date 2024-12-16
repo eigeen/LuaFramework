@@ -96,19 +96,24 @@ impl LuaUserData for LuaPtr {
 
             Ok(())
         });
-        methods.add_method("write_bytes", |lua, this, (buf, size): (Vec<u8>, u32)| {
-            if size == 0 || size > buf.len() as u32 {
-                return Err(
-                    Error::InvalidValue("0 < size <= buf.len()", size.to_string()).into_lua_err(),
-                );
-            }
-            let ptr = this.to_usize();
-            let write_buf = &buf[..size as usize];
+        methods.add_method(
+            "write_bytes",
+            |lua, this, (buf, size): (Vec<u8>, Option<u32>)| {
+                let size = size.unwrap_or(buf.len() as u32);
+                if size == 0 || size > buf.len() as u32 {
+                    return Err(
+                        Error::InvalidValue("0 < size <= buf.len()", size.to_string())
+                            .into_lua_err(),
+                    );
+                }
+                let ptr = this.to_usize();
+                let write_buf = &buf[..size as usize];
 
-            write_bytes(lua, ptr, write_buf).into_lua_err()?;
+                write_bytes(lua, ptr, write_buf).into_lua_err()?;
 
-            Ok(())
-        });
+                Ok(())
+            },
+        );
 
         // register read_i32, read_i64, write_i32, write_i64, and so on
         INTEGER_TYPE_SIZE_MAP.iter().for_each(|(name, size)| {
@@ -129,7 +134,9 @@ impl LuaUserData for LuaPtr {
         methods.add_method("read_f32", |lua, this, ()| {
             let ptr = this.to_usize();
             let bytes = quick_read_bytes(lua, ptr, 4).into_lua_err()?;
-            let value = f64::from_le_bytes(bytes);
+
+            let bytes4: [u8; 4] = [bytes[0], bytes[1], bytes[2], bytes[3]];
+            let value = f32::from_le_bytes(bytes4);
             Ok(value)
         });
         methods.add_method("read_f64", |lua, this, ()| {

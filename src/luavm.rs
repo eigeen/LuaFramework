@@ -246,7 +246,7 @@ impl Drop for LuaVM {
         let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&self.lua).unwrap();
         crate::extension::CoreAPI::instance().dispatch_lua_state_destroyed(lua_state_ptr);
         // 移除frida hooks
-        log::debug!("Removing LuaVM({}) frida hooks", self.id.0);
+        log::debug!("Removing LuaVM({}) frida hooks", self.get_name());
         let result = library::sdk::frida::FridaModule::remove_all_hooks(&self.lua);
         if let Err(e) = result {
             log::error!(
@@ -256,7 +256,7 @@ impl Drop for LuaVM {
             );
         }
 
-        log::debug!("LuaVM({}) removed", self.id.0);
+        log::debug!("LuaVM({}) removed", self.get_name());
     }
 }
 
