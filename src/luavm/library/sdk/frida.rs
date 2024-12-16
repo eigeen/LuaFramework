@@ -1,10 +1,11 @@
 use std::{collections::HashMap, ffi::c_void, sync::LazyLock};
 
 use frida_gum::{
-    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener},
+    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener, ProbeListener},
     Gum, NativePointer,
 };
 use inline::InlineInterceptor;
+use mid::MidInterceptor;
 use mlua::prelude::*;
 use parking_lot::Mutex;
 use rand::RngCore;
@@ -68,6 +69,28 @@ impl LuaModule for FridaModule {
                 Ok(ok)
             })?,
         )?;
+        interceptor_table.set(
+            "attach_instruction",
+            lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
+                // 尝试以 LuaPtr 类型解析 hook_ptr
+                let ptr = LuaPtr::from_lua(hook_ptr)?;
+                // 安全检查
+                MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
+
+                let interceptor = MidInterceptor::new_with_params(lua, ptr.to_usize(), &params)?;
+                let handle = interceptor.handle();
+                InterceptorDispatcher::instance()
+                    .lock()
+                    .add_mid(interceptor)
+                    .map_err(LuaError::external)?;
+
+                // 记录句柄，以便后续移除
+                let handle_table = lua.globals().get::<LuaTable>("_interceptor_handles")?;
+                handle_table.push(handle)?;
+
+                Ok(handle)
+            })?,
+        )?;
 
         registry.set("Interceptor", interceptor_table)?;
 
@@ -129,27 +152,6 @@ impl InterceptorHandle {
     }
 }
 
-/// Lua Indexing 参数类型
-enum IndexKey {
-    Int(u32),
-    Str(String),
-    Other(LuaValue),
-}
-
-impl From<LuaValue> for IndexKey {
-    fn from(value: LuaValue) -> Self {
-        if let Some(key) = value.as_number() {
-            IndexKey::Int(key as u32)
-        } else if let Some(key) = value.as_integer() {
-            IndexKey::Int(key as u32)
-        } else if let Some(key) = value.as_string() {
-            IndexKey::Str(key.to_string_lossy().to_string())
-        } else {
-            IndexKey::Other(value)
-        }
-    }
-}
-
 /// 封装标记为线程安全的 Interceptor
 struct InterceptorSend(pub Interceptor);
 
@@ -190,13 +192,27 @@ impl Drop for ListenerGuard {
     }
 }
 
+enum LuaInterceptor {
+    Inline(InlineInterceptor),
+    Mid(MidInterceptor),
+}
+
+impl LuaInterceptor {
+    fn hook_ptr(&self) -> usize {
+        match self {
+            LuaInterceptor::Inline(interceptor) => interceptor.hook_ptr(),
+            LuaInterceptor::Mid(interceptor) => interceptor.hook_ptr(),
+        }
+    }
+}
+
 /// 管理全局 Interceptor 上下文，分发 Hook 事件
 #[derive(Default)]
 struct InterceptorDispatcher {
     /// listeners: 记录被hook的Listener的指针和Listener的映射
     listeners: HashMap<usize, ListenerGuard>,
     /// handle -> interceptor
-    interceptors: HashMap<InterceptorHandle, InlineInterceptor>,
+    interceptors: HashMap<InterceptorHandle, LuaInterceptor>,
     /// hook_ptr -> []handle
     hook_handles: HashMap<usize, Vec<InterceptorHandle>>,
 }
@@ -214,7 +230,8 @@ impl InterceptorDispatcher {
 
         // 已有hook，添加引用后返回
         if let Some(_listener) = self.listeners.get(&hook_ptr) {
-            self.interceptors.insert(hook_handle, interceptor);
+            self.interceptors
+                .insert(hook_handle, LuaInterceptor::Inline(interceptor));
             self.hook_handles
                 .entry(hook_ptr)
                 .or_default()
@@ -223,7 +240,7 @@ impl InterceptorDispatcher {
         }
 
         // 创建新的listener
-        let mut my_listener = MyListener;
+        let mut my_listener = InlineListener;
         let listener = INTERCEPTOR
             .lock()
             .attach(NativePointer(hook_ptr as *mut c_void), &mut my_listener)
@@ -231,7 +248,42 @@ impl InterceptorDispatcher {
 
         let wrapped_listener = ListenerGuard::new(listener);
         self.listeners.insert(hook_ptr, wrapped_listener);
-        self.interceptors.insert(hook_handle, interceptor);
+        self.interceptors
+            .insert(hook_handle, LuaInterceptor::Inline(interceptor));
+        self.hook_handles
+            .entry(hook_ptr)
+            .or_default()
+            .push(hook_handle);
+
+        Ok(hook_handle)
+    }
+
+    fn add_mid(&mut self, interceptor: MidInterceptor) -> Result<InterceptorHandle> {
+        let hook_ptr = interceptor.hook_ptr();
+        let hook_handle = interceptor.handle();
+
+        // 已有hook，添加引用后返回
+        if let Some(_listener) = self.listeners.get(&hook_ptr) {
+            self.interceptors
+                .insert(hook_handle, LuaInterceptor::Mid(interceptor));
+            self.hook_handles
+                .entry(hook_ptr)
+                .or_default()
+                .push(hook_handle);
+            return Ok(hook_handle);
+        }
+
+        // 创建新的listener
+        let mut my_listener = MidListener;
+        let listener = INTERCEPTOR
+            .lock()
+            .attach_instruction(NativePointer(hook_ptr as *mut c_void), &mut my_listener)
+            .map_err(|e| Error::Frida(e.to_string()))?;
+
+        let wrapped_listener = ListenerGuard::new(listener);
+        self.listeners.insert(hook_ptr, wrapped_listener);
+        self.interceptors
+            .insert(hook_handle, LuaInterceptor::Mid(interceptor));
         self.hook_handles
             .entry(hook_ptr)
             .or_default()
@@ -264,7 +316,7 @@ impl InterceptorDispatcher {
         true
     }
 
-    fn dispatch_hook_event(&mut self, context: &InvocationContext) {
+    fn dispatch_inline_event(&mut self, context: &InvocationContext) {
         let hook_ptr = context.cpu_context().rip() as usize;
 
         let Some(handles) = self.get_hook_handles_by_ptr(hook_ptr) else {
@@ -272,22 +324,36 @@ impl InterceptorDispatcher {
         };
 
         for handle in handles {
-            if let Err(e) = self.invoke_lua_callback(handle, context) {
-                // TODO: 对lua虚拟机失效的情况进行处理
-                log::error!("invoke frida callback error ({:x}): {}", handle.id(), e);
-            }
+            let Some(interceptor) = self.interceptors.get(handle) else {
+                continue;
+            };
+            let LuaInterceptor::Inline(interceptor) = interceptor else {
+                continue;
+            };
+            if let Err(e) = interceptor.invoke_callback(context) {
+                log::error!("invoke inline callback error ({:x}): {}", handle.id(), e);
+            };
         }
     }
 
-    fn invoke_lua_callback(
-        &self,
-        handle: &InterceptorHandle,
-        context: &InvocationContext,
-    ) -> Result<()> {
-        if let Some(interceptor) = self.interceptors.get(handle) {
-            interceptor.invoke_callback(context)?;
+    fn dispatch_mid_event(&mut self, context: &InvocationContext) {
+        let hook_ptr = context.cpu_context().rip() as usize;
+
+        let Some(handles) = self.get_hook_handles_by_ptr(hook_ptr) else {
+            return;
+        };
+
+        for handle in handles {
+            let Some(interceptor) = self.interceptors.get(handle) else {
+                continue;
+            };
+            let LuaInterceptor::Mid(interceptor) = interceptor else {
+                continue;
+            };
+            if let Err(e) = interceptor.invoke_callback(context) {
+                log::error!("invoke mid callback error ({:x}): {}", handle.id(), e);
+            };
         }
-        Ok(())
     }
 
     fn get_hook_handles_by_ptr(&self, hook_ptr: usize) -> Option<&[InterceptorHandle]> {
@@ -295,26 +361,158 @@ impl InterceptorDispatcher {
     }
 }
 
-struct MyListener;
+struct InlineListener;
 
-impl InvocationListener for MyListener {
+impl InvocationListener for InlineListener {
     fn on_enter(&mut self, context: frida_gum::interceptor::InvocationContext) {
         InterceptorDispatcher::instance()
             .lock()
-            .dispatch_hook_event(&context);
+            .dispatch_inline_event(&context);
     }
 
     fn on_leave(&mut self, context: frida_gum::interceptor::InvocationContext) {
         InterceptorDispatcher::instance()
             .lock()
-            .dispatch_hook_event(&context);
+            .dispatch_inline_event(&context);
+    }
+}
+
+struct MidListener;
+
+impl ProbeListener for MidListener {
+    fn on_hit(&mut self, context: InvocationContext) {
+        InterceptorDispatcher::instance()
+            .lock()
+            .dispatch_mid_event(&context);
+    }
+}
+
+/// Lua Indexing 参数类型
+enum IndexKey {
+    Int(u32),
+    Str(String),
+    Other(LuaValue),
+}
+
+impl From<LuaValue> for IndexKey {
+    fn from(value: LuaValue) -> Self {
+        if let Some(key) = value.as_number() {
+            IndexKey::Int(key as u32)
+        } else if let Some(key) = value.as_integer() {
+            IndexKey::Int(key as u32)
+        } else if let Some(key) = value.as_string() {
+            IndexKey::Str(key.to_string_lossy().to_string())
+        } else {
+            IndexKey::Other(value)
+        }
+    }
+}
+
+/// 对 CpuContext 的封装，提供 Lua 访问接口
+struct CpuContextArgs<'a> {
+    context: frida_gum::CpuContext<'a>,
+}
+
+unsafe impl<'a> Send for CpuContextArgs<'a> {}
+unsafe impl<'a> Sync for CpuContextArgs<'a> {}
+
+impl<'a> CpuContextArgs<'a> {
+    pub fn new(context: frida_gum::CpuContext<'a>) -> Self {
+        Self { context }
+    }
+}
+
+impl<'a> LuaUserData for CpuContextArgs<'a> {
+    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
+        methods.add_meta_method(LuaMetaMethod::Index, |_lua, this, key: LuaValue| {
+            let index_key: IndexKey = key.into();
+
+            match index_key {
+                IndexKey::Str(key) => match key.as_str() {
+                    "rax" => Ok(this.context.rax()),
+                    "rbx" => Ok(this.context.rbx()),
+                    "rcx" => Ok(this.context.rcx()),
+                    "rdx" => Ok(this.context.rdx()),
+                    "rdi" => Ok(this.context.rdi()),
+                    "rsi" => Ok(this.context.rsi()),
+                    "rbp" => Ok(this.context.rbp()),
+                    "rsp" => Ok(this.context.rsp()),
+                    "r8" => Ok(this.context.r8()),
+                    "r9" => Ok(this.context.r9()),
+                    "r10" => Ok(this.context.r10()),
+                    "r11" => Ok(this.context.r11()),
+                    "r12" => Ok(this.context.r12()),
+                    "r13" => Ok(this.context.r13()),
+                    "r14" => Ok(this.context.r14()),
+                    "r15" => Ok(this.context.r15()),
+                    "rip" => Ok(this.context.rip()),
+                    _ => Err(LuaError::external(format!(
+                        "unknown register name: {}",
+                        key
+                    ))),
+                },
+                IndexKey::Int(_) => Err(LuaError::external(
+                    "number index is not allowed in attach_instruction",
+                )),
+                IndexKey::Other(key) => Err(LuaError::external(format!(
+                    "'{:?}' is invalid index in attach_instruction",
+                    key
+                ))),
+            }
+        });
+        methods.add_meta_method_mut(
+            LuaMetaMethod::NewIndex,
+            |_lua, this, (key, value): (LuaValue, LuaValue)| {
+                let index_key: IndexKey = key.into();
+                let ptr = LuaPtr::from_lua(value)?;
+                let ptr_val = ptr.to_u64();
+
+                match index_key {
+                    IndexKey::Str(key) => match key.as_str() {
+                        "rax" => this.context.set_rax(ptr_val),
+                        "rbx" => this.context.set_rbx(ptr_val),
+                        "rcx" => this.context.set_rcx(ptr_val),
+                        "rdx" => this.context.set_rdx(ptr_val),
+                        "rdi" => this.context.set_rdi(ptr_val),
+                        "rsi" => this.context.set_rsi(ptr_val),
+                        "rbp" => this.context.set_rbp(ptr_val),
+                        "rsp" => this.context.set_rsp(ptr_val),
+                        "r8" => this.context.set_r8(ptr_val),
+                        "r9" => this.context.set_r9(ptr_val),
+                        "r10" => this.context.set_r10(ptr_val),
+                        "r11" => this.context.set_r11(ptr_val),
+                        "r12" => this.context.set_r12(ptr_val),
+                        "r13" => this.context.set_r13(ptr_val),
+                        "r14" => this.context.set_r14(ptr_val),
+                        "r15" => this.context.set_r15(ptr_val),
+                        "rip" => this.context.set_rip(ptr_val),
+                        _ => {
+                            return Err(LuaError::external(format!(
+                                "unknown register name: {}",
+                                key
+                            )))
+                        }
+                    },
+                    IndexKey::Int(_) => {
+                        return Err(LuaError::external(
+                            "number index is not allowed in attach_instruction",
+                        ))
+                    }
+                    IndexKey::Other(key) => {
+                        return Err(LuaError::external(format!(
+                            "'{:?}' is invalid index in attach_instruction",
+                            key
+                        )))
+                    }
+                };
+                Ok(())
+            },
+        );
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     use crate::{luavm::LuaVMManager, tests::init_logging};
 
     extern "C" fn test_add(a: i32, b: i32) -> i32 {

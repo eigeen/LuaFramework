@@ -37,7 +37,7 @@ impl InlineInterceptor {
         };
         let weak = Arc::downgrade(&luavm);
 
-        let mut interceptor = InlineInterceptor::new(hook_ptr, weak);
+        let mut interceptor = Self::new(hook_ptr, weak);
 
         if let Ok(on_enter) = params.get::<LuaFunction>("on_enter") {
             interceptor.set_on_enter(on_enter);
@@ -124,7 +124,8 @@ impl<'a> LuaUserData for InlineEnterArgs<'a> {
                 IndexKey::Str(key) => {
                     // 内部保留关键字key
                     match key.as_ref() {
-                        "retval" => {
+                        "cpu_context" => {
+                            // let cpu_args = CpuContextArgs::new(context)
                             todo!()
                         }
                         other => {
