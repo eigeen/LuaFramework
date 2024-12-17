@@ -59,6 +59,14 @@ local Input = {
 ---@field read_i32 fun(): integer
 ---@field read_u64 fun(): integer
 ---@field read_i64 fun(): integer
+---@field write_u8 fun(value:integer)
+---@field write_i8 fun(value:integer)
+---@field write_u16 fun(value:integer)
+---@field write_i16 fun(value:integer)
+---@field write_u32 fun(value:integer)
+---@field write_i32 fun(value:integer)
+---@field write_u64 fun(value:integer)
+---@field write_i64 fun(value:integer)
 ---@field read_f32 fun(): number
 ---@field read_f64 fun(): number
 ---@field write_f32 fun(value:number)
