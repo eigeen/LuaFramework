@@ -24,7 +24,11 @@ file_src_dst = [
         "dst": "lua_framework/extensions/luaf_libffi.dll",
     },
     {"type": "create_dir", "dst": "lua_framework/scripts"},
-    {"type": "dir", "src": "scripts/_framework", "dst": "lua_framework/scripts/_framework"}
+    {
+        "type": "dir",
+        "src": "scripts/_framework",
+        "dst": "lua_framework/scripts/_framework",
+    },
 ]
 
 for src_dst in file_src_dst:
@@ -58,7 +62,11 @@ for src_dst in file_src_dst:
         for root, dirs, files in os.walk(src_dst["src"]):
             for file in files:
                 archive.write(
-                    os.path.join(root, file), os.path.join(src_dst["dst"], file)
+                    os.path.join(root, file),
+                    os.path.join(
+                        src_dst["dst"],
+                        os.path.relpath(os.path.join(root, file), src_dst["src"]),
+                    ),
                 )
     elif src_dst["type"] == "create_dir":
         archive.mkdir(src_dst["dst"])
