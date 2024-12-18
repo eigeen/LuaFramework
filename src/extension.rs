@@ -186,10 +186,10 @@ extern "C" fn add_core_function(name: *const u8, len: u32, func: *const c_void) 
     let name = if len == 0 {
         // try to initialize c-string
         let c_name = unsafe { std::ffi::CStr::from_ptr(name as *const i8) };
-        c_name.to_str().unwrap_or_default()
+        c_name.to_str().unwrap_or("<Invalid UTF-8>")
     } else {
         let name_slice = unsafe { std::slice::from_raw_parts(name, len as usize) };
-        std::str::from_utf8(name_slice).unwrap_or_default()
+        std::str::from_utf8(name_slice).unwrap_or("<Invalid UTF-8>")
     };
 
     log::debug!("Extension function added: {}", name);
@@ -200,10 +200,10 @@ extern "C" fn get_core_function(name: *const u8, len: u32) -> *const c_void {
     let name = if len == 0 {
         // try to initialize c-string
         let c_name = unsafe { std::ffi::CStr::from_ptr(name as *const i8) };
-        c_name.to_str().unwrap_or_default()
+        c_name.to_str().unwrap_or("<Invalid UTF-8>")
     } else {
         let name_slice = unsafe { std::slice::from_raw_parts(name, len as usize) };
-        std::str::from_utf8(name_slice).unwrap_or_default()
+        std::str::from_utf8(name_slice).unwrap_or("<Invalid UTF-8>")
     };
 
     log::debug!("Extension function get: {}", name);
@@ -229,14 +229,20 @@ extern "C" fn set_on_lua_state_destroyed(callback: OnLuaStateDestroyedCb) {
 }
 
 extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
-    let msg_slice = unsafe { std::slice::from_raw_parts(msg, msg_len as usize) };
-    let msg_str = std::str::from_utf8(msg_slice).unwrap_or_default();
+    let msg_str = if msg_len == 0 {
+        // try to initialize c-string
+        let c_msg = unsafe { std::ffi::CStr::from_ptr(msg as *const i8) };
+        c_msg.to_str().unwrap_or("<Invalid UTF-8>")
+    } else {
+        let msg_slice = unsafe { std::slice::from_raw_parts(msg, msg_len as usize) };
+        std::str::from_utf8(msg_slice).unwrap_or("<Invalid UTF-8>")
+    };
 
     match level {
-        LogLevel::Trace => log::trace!("{}", msg_str),
-        LogLevel::Debug => log::debug!("{}", msg_str),
-        LogLevel::Info => log::info!("{}", msg_str),
-        LogLevel::Warn => log::warn!("{}", msg_str),
-        LogLevel::Error => log::error!("{}", msg_str),
+        LogLevel::Trace => log::trace!("[ext] {}", msg_str),
+        LogLevel::Debug => log::debug!("[ext] {}", msg_str),
+        LogLevel::Info => log::info!("[ext] {}", msg_str),
+        LogLevel::Warn => log::warn!("[ext] {}", msg_str),
+        LogLevel::Error => log::error!("[ext] {}", msg_str),
     }
 }

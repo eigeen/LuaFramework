@@ -46,6 +46,7 @@ fn main_entry() -> anyhow::Result<()> {
     // 初始化hook等资源
     game::command::init_game_command()?;
     game::singleton::SingletonManager::instance().initialize()?;
+    utility::add_dll_directory("lua_framework/bin")?;
 
     bootstrap::on_post_mh_main_ctor(|| {
         // 处理单例
@@ -53,7 +54,11 @@ fn main_entry() -> anyhow::Result<()> {
 
         // 注册扩展
         let (total, success) = extension::CoreAPI::instance().load_core_exts()?;
-        log::info!("Loaded {total} extensions, {} failed.", total - success);
+        log::info!(
+            "Loaded {} extensions successfully, {} failed.",
+            success,
+            total - success
+        );
 
         // 初始加载 LuaVM
         luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
