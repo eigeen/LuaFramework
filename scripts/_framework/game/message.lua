@@ -1,4 +1,4 @@
-local Common = require("_framework.common")
+local Common = require("_framework.game.common")
 
 local g_chat = sdk.get_singleton("sChat")
 local g_system_send = sdk.AddressRepository.get_or_insert("Chat:SystemMessage",

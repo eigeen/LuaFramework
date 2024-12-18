@@ -63,7 +63,7 @@ impl SingletonManager {
                 continue;
             };
 
-            log::trace!("Found singleton: {} at 0x{:x}", name, addr);
+            log::debug!("Found singleton: {} at 0x{:x}", name, addr);
 
             singletons.insert(name.to_string(), addr);
         }
@@ -80,6 +80,15 @@ impl SingletonManager {
     /// 获取单例地址（指针形式）
     pub fn get_ptr<T>(&self, name: &str) -> Option<*mut T> {
         self.get_address(name).map(|addr| addr as *mut T)
+    }
+
+    /// 获取所有单例记录
+    pub fn singletons(&self) -> Vec<(String, usize)> {
+        self.singletons
+            .lock()
+            .iter()
+            .map(|(name, addr)| (name.clone(), *addr))
+            .collect()
     }
 }
 
