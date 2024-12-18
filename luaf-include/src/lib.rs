@@ -1,54 +1,93 @@
+#[cfg(feature = "logger")]
+pub mod logger;
+
+pub mod input;
+
 use std::ffi::c_void;
 
-pub type OnLuaStateCreatedCb = unsafe extern "C" fn(lua_state: *mut c_void);
-pub type OnLuaStateDestroyedCb = unsafe extern "C" fn(lua_state: *mut c_void);
+pub use input::{ControllerButton, KeyCode};
 
-#[repr(C)]
-pub struct CoreAPIParam {
-    pub add_core_function: extern "C" fn(name: *const u8, len: u32, func: *const c_void),
-    pub get_core_function: extern "C" fn(name: *const u8, len: u32) -> *const c_void,
+mod ext;
+pub use ext::*;
 
-    pub functions: *const CoreAPIFunctions,
+static mut INSTANCE: Option<API> = None;
+
+pub struct API {
+    param: &'static CoreAPIParam,
 }
 
-impl CoreAPIParam {
+unsafe impl Send for API {}
+unsafe impl Sync for API {}
+
+impl API {
+    pub fn initialize(param: &'static CoreAPIParam) {
+        unsafe {
+            if INSTANCE.is_none() {
+                INSTANCE = Some(API { param });
+            }
+        }
+    }
+
+    pub fn get() -> &'static Self {
+        unsafe {
+            if INSTANCE.is_none() {
+                panic!("API used before initialization.");
+            }
+            INSTANCE.as_ref().unwrap()
+        }
+    }
+
+    pub(crate) fn param(&self) -> &'static CoreAPIParam {
+        self.param
+    }
+
+    pub(crate) fn functions(&self) -> &'static CoreAPIFunctions {
+        unsafe { &*self.param.functions }
+    }
+
     pub fn add_core_function(&self, name: &str, func: *const c_void) {
         let name_bytes = name.as_bytes();
-        (self.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
+        (self.param.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
     }
 
-    pub fn get_core_function(&self, name: &str) -> *const c_void {
+    pub fn get_core_function(&self, name: &str) -> Option<*const c_void> {
         let name_bytes = name.as_bytes();
-        (self.get_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32)
+        let result = (self.param.get_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32);
+        if result.is_null() {
+            None
+        } else {
+            Some(result)
+        }
     }
 
-    pub fn functions(&self) -> &CoreAPIFunctions {
-        unsafe { &*self.functions }
+    pub fn log(&self, level: LogLevel, msg: &str) {
+        let msg_bytes = msg.as_bytes();
+        (self.functions().log)(level, msg_bytes.as_ptr(), msg_bytes.len() as u32)
+    }
+
+    pub fn lua(&self) -> LuaFunctions {
+        LuaFunctions(self)
+    }
+
+    pub fn input(&self) -> input::Input {
+        input::Input(self)
     }
 }
 
-#[repr(C)]
-pub struct CoreAPIFunctions {
-    pub on_lua_state_created: extern "C" fn(OnLuaStateCreatedCb),
-    pub on_lua_state_destroyed: extern "C" fn(OnLuaStateDestroyedCb),
-    pub log: extern "C" fn(LogLevel, msg: *const u8, msg_len: u32),
-}
+#[repr(transparent)]
+pub struct LuaFunctions<'a>(&'a API);
 
-impl CoreAPIFunctions {
+impl<'a> LuaFunctions<'a> {
     pub fn on_lua_state_created(&self, cb: OnLuaStateCreatedCb) {
-        (self.on_lua_state_created)(cb)
+        (self.0.functions().on_lua_state_created)(cb)
     }
 
     pub fn on_lua_state_destroyed(&self, cb: OnLuaStateDestroyedCb) {
-        (self.on_lua_state_destroyed)(cb)
+        (self.0.functions().on_lua_state_destroyed)(cb)
     }
-}
 
-#[repr(i32)]
-pub enum LogLevel {
-    Trace = 0,
-    Debug = 1,
-    Info = 2,
-    Warn = 3,
-    Error = 4,
+    pub fn lua_lock(&self) {
+        // (self.0.functions().lua_lock)()
+        todo!()
+    }
 }

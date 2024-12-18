@@ -23,6 +23,11 @@ file_src_dst = [
         "src": "target/release/luaf_libffi.dll",
         "dst": "lua_framework/extensions/luaf_libffi.dll",
     },
+        {
+        "type": "file",
+        "src": "target/release/luaf_imgui_api.dll",
+        "dst": "lua_framework/extensions/luaf_imgui_api.dll",
+    },
     {"type": "create_dir", "dst": "lua_framework/scripts"},
     {
         "type": "dir",

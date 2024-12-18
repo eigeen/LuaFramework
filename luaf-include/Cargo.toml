@@ -4,3 +4,11 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
+log = { workspace = true, optional = true }
+serde.workspace = true
+strum = { version = "0.26.3", features = ["derive"] }
+
+
+[features]
+default = []
+logger = ["log"]

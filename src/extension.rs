@@ -1,7 +1,8 @@
 use std::{collections::HashMap, ffi::c_void, path::Path, sync::LazyLock};
 
 use luaf_include::{
-    CoreAPIFunctions, CoreAPIParam, LogLevel, OnLuaStateCreatedCb, OnLuaStateDestroyedCb,
+    ControllerButton, CoreAPIFunctions, CoreAPIParam, KeyCode, LogLevel, OnLuaStateCreatedCb,
+    OnLuaStateDestroyedCb,
 };
 use parking_lot::Mutex;
 use windows::{
@@ -12,7 +13,10 @@ use windows::{
     },
 };
 
-use crate::error::{Error, Result};
+use crate::{
+    error::{Error, Result},
+    input::Input,
+};
 
 /// 核心扩展API，加载扩展，动态加载函数，事件分发等。
 #[derive(Debug, Default)]
@@ -171,6 +175,10 @@ const CORE_API_FUNCTIONS: CoreAPIFunctions = CoreAPIFunctions {
     on_lua_state_created: set_on_lua_state_created,
     on_lua_state_destroyed: set_on_lua_state_destroyed,
     log: log_,
+    is_key_pressed,
+    is_key_down,
+    is_controller_pressed,
+    is_controller_down,
 };
 const CORE_API_PARAM: CoreAPIParam = CoreAPIParam {
     add_core_function,
@@ -245,4 +253,36 @@ extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
         LogLevel::Warn => log::warn!("[ext] {}", msg_str),
         LogLevel::Error => log::error!("[ext] {}", msg_str),
     }
+}
+
+extern "C" fn is_key_pressed(key: u32) -> bool {
+    let key = KeyCode::from_repr(key);
+    let Some(key) = key else {
+        return false;
+    };
+    Input::instance().keyboard().is_pressed(key)
+}
+
+extern "C" fn is_key_down(key: u32) -> bool {
+    let key = KeyCode::from_repr(key);
+    let Some(key) = key else {
+        return false;
+    };
+    Input::instance().keyboard().is_down(key)
+}
+
+extern "C" fn is_controller_pressed(button: u32) -> bool {
+    let button = ControllerButton::from_repr(button);
+    let Some(button) = button else {
+        return false;
+    };
+    Input::instance().controller().is_pressed(button)
+}
+
+extern "C" fn is_controller_down(button: u32) -> bool {
+    let button = ControllerButton::from_repr(button);
+    let Some(button) = button else {
+        return false;
+    };
+    Input::instance().controller().is_down(button)
 }
