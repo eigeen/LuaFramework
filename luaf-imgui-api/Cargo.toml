@@ -1,0 +1,18 @@
+[package]
+name = "luaf-imgui-api"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+luaf-include = { path = "../luaf-include", features = ["logger"]}
+cimgui = { path = "../../../cimgui-linking-rs/cimgui" }
+
+mlua = { workspace = true, features = ["send", "serialize"] }
+log.workspace = true
+thiserror.workspace = true
+parking_lot.workspace = true
+rand.workspace = true
+anyhow.workspace = true
