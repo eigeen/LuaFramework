@@ -61,6 +61,7 @@ fn main_entry() -> anyhow::Result<()> {
         );
 
         // 初始加载 LuaVM
+        log::info!("Loading scripts...");
         luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
 
         // 设置 on_update 回调

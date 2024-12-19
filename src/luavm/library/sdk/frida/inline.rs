@@ -89,7 +89,8 @@ impl InlineInterceptor {
                     }
                 };
 
-                lua_callback.call::<()>(args_ud)
+                // 全局锁中执行回调
+                LuaVMManager::instance().run_with_lock(|_| lua_callback.call::<()>(args_ud))
             })?;
         }
 

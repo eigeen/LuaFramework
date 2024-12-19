@@ -64,7 +64,8 @@ impl MidInterceptor {
                 let args = CpuContextArgs::new(context.cpu_context());
                 let args_ud = scope.create_userdata(args)?;
 
-                on_hit.call::<()>(args_ud)
+                // 全局锁中执行回调
+                LuaVMManager::instance().run_with_lock(|_| on_hit.call::<()>(args_ud))
             })?;
         }
 

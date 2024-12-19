@@ -19,7 +19,9 @@ impl LuaModule for RuntimeModule {
 
         registry.set("log", log_table)?;
 
-        let core_table = lua.create_table()?;
+        let core_table = registry
+            .get::<LuaTable>("core")
+            .or_else(|_| lua.create_table())?;
         core_table.set(
             "debug_mode",
             lua.create_function(|lua, enable: bool| {

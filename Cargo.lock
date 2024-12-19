@@ -946,6 +946,7 @@ dependencies = [
  "cimgui",
  "log",
  "luaf-include",
+ "mlua",
  "parking_lot",
  "rand",
  "thiserror 2.0.7",

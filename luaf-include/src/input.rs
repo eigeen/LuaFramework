@@ -1,7 +1,7 @@
 use serde::{Deserialize, Serialize};
 use strum::FromRepr;
 
-use crate::API;
+use crate::CoreAPIInput;
 
 #[repr(u32)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, FromRepr)]
@@ -191,7 +191,7 @@ pub enum KeyCode {
 }
 
 #[repr(transparent)]
-pub struct Input<'a>(pub &'a API);
+pub struct Input<'a>(pub &'a CoreAPIInput);
 
 impl<'a> Input<'a> {
     pub fn keyboard(&self) -> InputKeyboard {
@@ -204,27 +204,27 @@ impl<'a> Input<'a> {
 }
 
 #[repr(transparent)]
-pub struct InputKeyboard<'a>(&'a API);
+pub struct InputKeyboard<'a>(&'a CoreAPIInput);
 
 impl<'a> InputKeyboard<'a> {
     pub fn is_pressed(&self, key: KeyCode) -> bool {
-        (self.0.functions().is_key_pressed)(key as u32)
+        (self.0.is_key_pressed)(key as u32)
     }
 
     pub fn is_down(&self, key: KeyCode) -> bool {
-        (self.0.functions().is_key_down)(key as u32)
+        (self.0.is_key_down)(key as u32)
     }
 }
 
 #[repr(transparent)]
-pub struct InputController<'a>(&'a API);
+pub struct InputController<'a>(&'a CoreAPIInput);
 
 impl<'a> InputController<'a> {
     pub fn is_pressed(&self, button: ControllerButton) -> bool {
-        (self.0.functions().is_controller_pressed)(button as u32)
+        (self.0.is_controller_pressed)(button as u32)
     }
 
     pub fn is_down(&self, button: ControllerButton) -> bool {
-        (self.0.functions().is_controller_down)(button as u32)
+        (self.0.is_controller_down)(button as u32)
     }
 }

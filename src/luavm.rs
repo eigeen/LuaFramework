@@ -199,6 +199,14 @@ impl LuaVMManager {
             };
         }
     }
+
+    pub fn run_with_lock<F>(&self, f: F) -> LuaResult<()>
+    where
+        F: FnOnce(&LuaVMManagerInner) -> LuaResult<()>,
+    {
+        let inner = self.inner.lock();
+        f(&inner)
+    }
 }
 
 #[derive(Default)]

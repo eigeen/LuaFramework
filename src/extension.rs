@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ffi::c_void, path::Path, sync::LazyLock};
 
 use luaf_include::{
-    ControllerButton, CoreAPIFunctions, CoreAPIParam, KeyCode, LogLevel, OnLuaStateCreatedCb,
-    OnLuaStateDestroyedCb,
+    ControllerButton, CoreAPIInput, CoreAPILua, CoreAPIParam, KeyCode, LogLevel,
+    OnLuaStateCreatedCb, OnLuaStateDestroyedCb,
 };
 use parking_lot::Mutex;
 use windows::{
@@ -16,6 +16,7 @@ use windows::{
 use crate::{
     error::{Error, Result},
     input::Input,
+    luavm::LuaVMManager,
 };
 
 /// 核心扩展API，加载扩展，动态加载函数，事件分发等。
@@ -118,6 +119,15 @@ impl CoreAPI {
 
     /// 初始化扩展
     fn init_core_extension<P: AsRef<Path>>(path: P) -> Result<CoreExtension> {
+        log::info!(
+            "Loading extension: {}",
+            path.as_ref()
+                .file_name()
+                .unwrap_or_default()
+                .to_str()
+                .unwrap()
+        );
+
         let path_w = crate::utility::to_wstring_bytes_with_nul(path.as_ref().to_str().unwrap());
 
         // load module
@@ -171,19 +181,23 @@ struct CoreExtension {
     handle: HMODULE,
 }
 
-const CORE_API_FUNCTIONS: CoreAPIFunctions = CoreAPIFunctions {
-    on_lua_state_created: set_on_lua_state_created,
-    on_lua_state_destroyed: set_on_lua_state_destroyed,
+const CORE_API_PARAM: CoreAPIParam = CoreAPIParam {
+    add_core_function,
+    get_core_function,
     log: log_,
+    lua: &CORE_API_LUA as *const _,
+    input: &CORE_API_KEY as *const _,
+};
+const CORE_API_LUA: CoreAPILua = CoreAPILua {
+    on_lua_state_created,
+    on_lua_state_destroyed,
+    with_lua_lock,
+};
+const CORE_API_KEY: CoreAPIInput = CoreAPIInput {
     is_key_pressed,
     is_key_down,
     is_controller_pressed,
     is_controller_down,
-};
-const CORE_API_PARAM: CoreAPIParam = CoreAPIParam {
-    add_core_function,
-    get_core_function,
-    functions: &CORE_API_FUNCTIONS as *const CoreAPIFunctions,
 };
 
 fn get_core_api_param() -> &'static CoreAPIParam {
@@ -220,7 +234,7 @@ extern "C" fn get_core_function(name: *const u8, len: u32) -> *const c_void {
         .unwrap_or(std::ptr::null())
 }
 
-extern "C" fn set_on_lua_state_created(callback: OnLuaStateCreatedCb) {
+extern "C" fn on_lua_state_created(callback: OnLuaStateCreatedCb) {
     CoreAPI::instance()
         .inner
         .lock()
@@ -228,12 +242,19 @@ extern "C" fn set_on_lua_state_created(callback: OnLuaStateCreatedCb) {
         .push(callback);
 }
 
-extern "C" fn set_on_lua_state_destroyed(callback: OnLuaStateDestroyedCb) {
+extern "C" fn on_lua_state_destroyed(callback: OnLuaStateDestroyedCb) {
     CoreAPI::instance()
         .inner
         .lock()
         .on_lua_state_destroyed
         .push(callback);
+}
+
+extern "C" fn with_lua_lock(fun: extern "C" fn(*mut c_void), user_data: *mut c_void) {
+    let _ = LuaVMManager::instance().run_with_lock(|_| {
+        fun(user_data);
+        Ok(())
+    });
 }
 
 extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
@@ -247,11 +268,11 @@ extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
     };
 
     match level {
-        LogLevel::Trace => log::trace!("[ext] {}", msg_str),
-        LogLevel::Debug => log::debug!("[ext] {}", msg_str),
-        LogLevel::Info => log::info!("[ext] {}", msg_str),
-        LogLevel::Warn => log::warn!("[ext] {}", msg_str),
-        LogLevel::Error => log::error!("[ext] {}", msg_str),
+        LogLevel::Trace => log::trace!("{}", msg_str),
+        LogLevel::Debug => log::debug!("{}", msg_str),
+        LogLevel::Info => log::info!("{}", msg_str),
+        LogLevel::Warn => log::warn!("{}", msg_str),
+        LogLevel::Error => log::error!("{}", msg_str),
     }
 }
 

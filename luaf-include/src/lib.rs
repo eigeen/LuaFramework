@@ -37,14 +37,6 @@ impl API {
         }
     }
 
-    pub(crate) fn param(&self) -> &'static CoreAPIParam {
-        self.param
-    }
-
-    pub(crate) fn functions(&self) -> &'static CoreAPIFunctions {
-        unsafe { &*self.param.functions }
-    }
-
     pub fn add_core_function(&self, name: &str, func: *const c_void) {
         let name_bytes = name.as_bytes();
         (self.param.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
@@ -62,32 +54,45 @@ impl API {
 
     pub fn log(&self, level: LogLevel, msg: &str) {
         let msg_bytes = msg.as_bytes();
-        (self.functions().log)(level, msg_bytes.as_ptr(), msg_bytes.len() as u32)
+        (self.param.log)(level, msg_bytes.as_ptr(), msg_bytes.len() as u32)
     }
 
     pub fn lua(&self) -> LuaFunctions {
-        LuaFunctions(self)
+        LuaFunctions(unsafe { &*self.param.lua })
     }
 
     pub fn input(&self) -> input::Input {
-        input::Input(self)
+        input::Input(unsafe { &*self.param.input })
     }
 }
 
 #[repr(transparent)]
-pub struct LuaFunctions<'a>(&'a API);
+pub struct LuaFunctions<'a>(&'a CoreAPILua);
 
 impl<'a> LuaFunctions<'a> {
     pub fn on_lua_state_created(&self, cb: OnLuaStateCreatedCb) {
-        (self.0.functions().on_lua_state_created)(cb)
+        (self.0.on_lua_state_created)(cb)
     }
 
     pub fn on_lua_state_destroyed(&self, cb: OnLuaStateDestroyedCb) {
-        (self.0.functions().on_lua_state_destroyed)(cb)
+        (self.0.on_lua_state_destroyed)(cb)
     }
 
-    pub fn lua_lock(&self) {
-        // (self.0.functions().lua_lock)()
-        todo!()
+    pub fn with_lua_lock<F>(&self, f: F)
+    where
+        F: FnOnce() + Send + 'static,
+    {
+        unsafe {
+            WITH_LUA_LOCK_CB = Some(Box::new(f));
+            (self.0.with_lua_lock)(universal_with_lua_lock, std::ptr::null_mut());
+        }
+    }
+}
+
+static mut WITH_LUA_LOCK_CB: Option<Box<dyn FnOnce() + Send>> = None;
+
+extern "C" fn universal_with_lua_lock(_user_data: *mut c_void) {
+    if let Some(callback) = unsafe { WITH_LUA_LOCK_CB.take() } {
+        callback();
     }
 }
