@@ -89,18 +89,106 @@ fn init_bindings(lua: &Lua) -> LuaResult<()> {
         })?,
     )?;
 
-    let imgui_table = lua.create_table()?;
-    imgui_table.set(
-        "button",
-        lua.create_function(|_, (label, size): (CString, Option<ImVec2>)| unsafe {
-            let pressed = cimgui::sys::igButton(label.as_ptr(), *size.unwrap_or_default());
-            Ok(pressed)
-        })?,
-    )?;
-
-    globals.set("imgui", imgui_table)?;
+    globals.set("imgui", LuaImgui)?;
 
     Ok(())
+}
+
+pub struct LuaImgui;
+
+impl LuaUserData for LuaImgui {
+    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
+        methods.add_function(
+            "button",
+            |_, (label, size): (CString, Option<ImVec2>)| unsafe {
+                let pressed = cimgui::sys::igButton(label.as_ptr(), *size.unwrap_or_default());
+                Ok(pressed)
+            },
+        );
+        methods.add_function("text", |_, text: CString| unsafe {
+            cimgui::sys::igText(text.as_ptr());
+            Ok(())
+        });
+        methods.add_function("checkbox", |_, (label, value): (CString, bool)| unsafe {
+            let mut value = value;
+            let changed = cimgui::sys::igCheckbox(label.as_ptr(), &mut value);
+            Ok((changed, value))
+        });
+        methods.add_function(
+            "combo",
+            |_, (label, selection, values): (CString, usize, Vec<CString>)| unsafe {
+                let preview_value = values.first().cloned().unwrap_or_default();
+                let c_preview_value = CString::new(preview_value).unwrap();
+
+                let mut selection_changed = false;
+                let mut selection = selection;
+                if cimgui::sys::igBeginCombo(label.as_ptr(), c_preview_value.as_ptr(), 0) {
+                    for (key_m1, value) in values.iter().enumerate() {
+                        let key = key_m1 + 1;
+                        if cimgui::sys::igSelectable_Bool(
+                            value.as_ptr(),
+                            selection == key,
+                            0,
+                            *ImVec2::default(),
+                        ) {
+                            selection = key;
+                            selection_changed = true;
+                        }
+                    }
+
+                    cimgui::sys::igEndCombo();
+                }
+                Ok((selection_changed, selection))
+            },
+        );
+
+        methods.add_function(
+            "same_line",
+            |_, (offset_from_start_x, spacing): (Option<f32>, Option<f32>)| unsafe {
+                cimgui::sys::igSameLine(offset_from_start_x.unwrap_or(0.0), spacing.unwrap_or(0.0));
+                Ok(())
+            },
+        );
+        methods.add_function("spacing", |_, ()| unsafe {
+            cimgui::sys::igSpacing();
+            Ok(())
+        });
+        methods.add_function("new_line", |_, ()| unsafe {
+            cimgui::sys::igNewLine();
+            Ok(())
+        });
+
+        methods.add_function(
+            "begin_window",
+            |_, (name, open, flags): (CString, bool, Option<i32>)| unsafe {
+                if !open {
+                    return Ok(false);
+                }
+
+                let mut open = open;
+                cimgui::sys::igBegin(name.as_ptr(), &mut open, flags.unwrap_or(0));
+
+                Ok(open)
+            },
+        );
+        methods.add_function("end_window", |_, ()| unsafe {
+            cimgui::sys::igEnd();
+            Ok(())
+        });
+
+        methods.add_function("collapsing_header", |_, label: CString| unsafe {
+            let opened = cimgui::sys::igCollapsingHeader_TreeNodeFlags(label.as_ptr(), 0);
+            Ok(opened)
+        });
+        methods.add_function("tree_node", |_, label: CString| unsafe {
+            let opened = cimgui::sys::igTreeNode_Str(label.as_ptr());
+            Ok(opened)
+        });
+        methods.add_function("tree_pop", |_, ()| unsafe {
+            cimgui::sys::igTreePop();
+            Ok(())
+        });
+    }
 }
 
 pub struct ImVec2(pub cimgui::sys::ImVec2);
