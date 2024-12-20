@@ -37,19 +37,8 @@ impl API {
         }
     }
 
-    pub fn add_core_function(&self, name: &str, func: *const c_void) {
-        let name_bytes = name.as_bytes();
-        (self.param.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
-    }
-
-    pub fn get_core_function(&self, name: &str) -> Option<*const c_void> {
-        let name_bytes = name.as_bytes();
-        let result = (self.param.get_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32);
-        if result.is_null() {
-            None
-        } else {
-            Some(result)
-        }
+    pub fn functions(&self) -> CoreFunctions {
+        CoreFunctions(unsafe { &*self.param.functions })
     }
 
     pub fn log(&self, level: LogLevel, msg: &str) {
@@ -63,6 +52,58 @@ impl API {
 
     pub fn input(&self) -> input::Input {
         input::Input(unsafe { &*self.param.input })
+    }
+}
+
+#[repr(transparent)]
+pub struct CoreFunctions<'a>(&'a CoreAPIFunctions);
+
+impl<'a> CoreFunctions<'a> {
+    pub fn add_core_function(&self, name: &str, func: *const c_void) {
+        let name_bytes = name.as_bytes();
+        (self.0.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
+    }
+
+    pub fn get_core_function(&self, name: &str) -> Option<*const c_void> {
+        let name_bytes = name.as_bytes();
+        let result = (self.0.get_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32);
+        if result.is_null() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    pub fn get_singleton(&self, name: &str) -> Option<*const c_void> {
+        let name_bytes = name.as_bytes();
+        let result = (self.0.get_singleton)(name_bytes.as_ptr(), name_bytes.len() as u32);
+        if result.is_null() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    pub fn get_managed_address(&self, name: &str) -> Option<*const c_void> {
+        let name_bytes = name.as_bytes();
+        let result = (self.0.get_managed_address)(name_bytes.as_ptr(), name_bytes.len() as u32);
+        if result.is_null() {
+            None
+        } else {
+            Some(result)
+        }
+    }
+
+    pub fn set_managed_address(&self, name: &str, pattern: &str, offset: i32) {
+        let name_bytes = name.as_bytes();
+        let pattern_bytes = pattern.as_bytes();
+        (self.0.set_managed_address)(
+            name_bytes.as_ptr(),
+            name_bytes.len() as u32,
+            pattern_bytes.as_ptr(),
+            pattern_bytes.len() as u32,
+            offset,
+        );
     }
 }
 

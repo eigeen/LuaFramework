@@ -12,22 +12,35 @@
 namespace luaf
 {
 
-	typedef void (*OnLuaStateCreatedCb)();
-	typedef void (*OnLuaStateDestroyedCb)();
+	typedef void (*OnLuaStateCreatedCb)(void*);
+	typedef void (*OnLuaStateDestroyedCb)(void*);
 
-	typedef struct CoreAPIFunctions
-	{
-		void (*on_lua_state_created)(OnLuaStateCreatedCb);
-		void (*on_lua_state_destroyed)(OnLuaStateDestroyedCb);
-		void (*log)(uint32_t, const char*, uint32_t);
-	} CoreAPIFunctions;
-
-	typedef struct CoreAPIParam
-	{
+	typedef struct CoreAPIFunctions {
 		void (*add_core_function)(const char*, uint32_t, const void*);
 		const void* (*get_core_function)(const char*, uint32_t);
+		const void* (*get_singleton)(const char*, uint32_t);
+		void* (*get_managed_address)(const char*, uint32_t);
+		void (*set_managed_address)(const char* name, uint32_t name_len, const char* pattern, uint32_t pattern_len, int offset);
+	} CoreAPIFunctions;
 
+	typedef struct CoreAPILua {
+		void (*on_lua_state_created)(OnLuaStateCreatedCb);
+		void (*on_lua_state_destroyed)(OnLuaStateDestroyedCb);
+		void (*with_lua_lock)(void (*)(void*), void*);
+	} CoreAPILua;
+
+	typedef struct CoreAPIInput {
+		bool (*is_key_pressed)(uint32_t);
+		bool (*is_key_down)(uint32_t);
+		bool (*is_controller_pressed)(uint32_t);
+		bool (*is_controller_down)(uint32_t);
+	} CoreAPIInput;
+
+	typedef struct CoreAPIParam {
 		const CoreAPIFunctions* functions;
+		void (*log)(uint32_t, const char*, uint32_t);
+		const CoreAPILua* lua;
+		const CoreAPIInput* input;
 	} CoreAPIParam;
 
 	class Api
@@ -78,7 +91,7 @@ namespace luaf
 		};
 
 		void log_to_logger(Level level, std::string_view msg) {
-			m_param->functions->log(level, msg.data(), 0);
+			m_param->log(level, msg.data(), 0);
 		}
 
 		template<typename TFunc>

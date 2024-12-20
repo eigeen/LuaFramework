@@ -1,7 +1,7 @@
 use std::{collections::HashMap, ffi::c_void, path::Path, sync::LazyLock};
 
 use luaf_include::{
-    ControllerButton, CoreAPIInput, CoreAPILua, CoreAPIParam, KeyCode, LogLevel,
+    ControllerButton, CoreAPIFunctions, CoreAPIInput, CoreAPILua, CoreAPIParam, KeyCode, LogLevel,
     OnLuaStateCreatedCb, OnLuaStateDestroyedCb,
 };
 use parking_lot::Mutex;
@@ -14,7 +14,9 @@ use windows::{
 };
 
 use crate::{
+    address::{AddressRecord, AddressRepository},
     error::{Error, Result},
+    game::singleton::SingletonManager,
     input::Input,
     luavm::LuaVMManager,
 };
@@ -182,11 +184,17 @@ struct CoreExtension {
 }
 
 const CORE_API_PARAM: CoreAPIParam = CoreAPIParam {
-    add_core_function,
-    get_core_function,
+    functions: &CORE_API_FUNCTIONS as *const _,
     log: log_,
     lua: &CORE_API_LUA as *const _,
     input: &CORE_API_KEY as *const _,
+};
+const CORE_API_FUNCTIONS: CoreAPIFunctions = CoreAPIFunctions {
+    add_core_function,
+    get_core_function,
+    get_singleton,
+    get_managed_address,
+    set_managed_address,
 };
 const CORE_API_LUA: CoreAPILua = CoreAPILua {
     on_lua_state_created,
@@ -204,34 +212,62 @@ fn get_core_api_param() -> &'static CoreAPIParam {
     &CORE_API_PARAM
 }
 
-extern "C" fn add_core_function(name: *const u8, len: u32, func: *const c_void) {
-    let name = if len == 0 {
+fn from_ffi_str(s: *const u8, len: u32) -> &'static str {
+    if len == 0 {
         // try to initialize c-string
-        let c_name = unsafe { std::ffi::CStr::from_ptr(name as *const i8) };
+        let c_name = unsafe { std::ffi::CStr::from_ptr(s as *const i8) };
         c_name.to_str().unwrap_or("<Invalid UTF-8>")
     } else {
-        let name_slice = unsafe { std::slice::from_raw_parts(name, len as usize) };
+        let name_slice = unsafe { std::slice::from_raw_parts(s, len as usize) };
         std::str::from_utf8(name_slice).unwrap_or("<Invalid UTF-8>")
-    };
+    }
+}
+
+extern "C" fn add_core_function(name: *const u8, len: u32, func: *const c_void) {
+    let name = from_ffi_str(name, len);
 
     log::debug!("Extension function added: {}", name);
     CoreAPI::instance().register_function(name, func);
 }
 
 extern "C" fn get_core_function(name: *const u8, len: u32) -> *const c_void {
-    let name = if len == 0 {
-        // try to initialize c-string
-        let c_name = unsafe { std::ffi::CStr::from_ptr(name as *const i8) };
-        c_name.to_str().unwrap_or("<Invalid UTF-8>")
-    } else {
-        let name_slice = unsafe { std::slice::from_raw_parts(name, len as usize) };
-        std::str::from_utf8(name_slice).unwrap_or("<Invalid UTF-8>")
-    };
+    let name = from_ffi_str(name, len);
 
     log::debug!("Extension function get: {}", name);
     CoreAPI::instance()
         .get_function(name)
         .unwrap_or(std::ptr::null())
+}
+
+extern "C" fn get_singleton(name: *const u8, len: u32) -> *mut c_void {
+    let name = from_ffi_str(name, len);
+    SingletonManager::instance()
+        .get_ptr(name)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+extern "C" fn get_managed_address(name: *const u8, len: u32) -> *mut c_void {
+    let name = from_ffi_str(name, len);
+    AddressRepository::instance()
+        .get_ptr(name)
+        .unwrap_or(std::ptr::null_mut())
+}
+
+extern "C" fn set_managed_address(
+    name: *const u8,
+    name_len: u32,
+    pattern: *const u8,
+    pattern_len: u32,
+    offset: i32,
+) {
+    let name = from_ffi_str(name, name_len);
+    let pattern = from_ffi_str(pattern, pattern_len);
+
+    AddressRepository::instance().set_record(AddressRecord {
+        name: name.to_string(),
+        pattern: pattern.to_string(),
+        offset: offset as isize,
+    });
 }
 
 extern "C" fn on_lua_state_created(callback: OnLuaStateCreatedCb) {
@@ -258,14 +294,7 @@ extern "C" fn with_lua_lock(fun: extern "C" fn(*mut c_void), user_data: *mut c_v
 }
 
 extern "C" fn log_(level: LogLevel, msg: *const u8, msg_len: u32) {
-    let msg_str = if msg_len == 0 {
-        // try to initialize c-string
-        let c_msg = unsafe { std::ffi::CStr::from_ptr(msg as *const i8) };
-        c_msg.to_str().unwrap_or("<Invalid UTF-8>")
-    } else {
-        let msg_slice = unsafe { std::slice::from_raw_parts(msg, msg_len as usize) };
-        std::str::from_utf8(msg_slice).unwrap_or("<Invalid UTF-8>")
-    };
+    let msg_str = from_ffi_str(msg, msg_len);
 
     match level {
         LogLevel::Trace => log::trace!("{}", msg_str),

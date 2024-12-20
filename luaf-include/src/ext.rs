@@ -5,14 +5,30 @@ pub type OnLuaStateDestroyedCb = unsafe extern "C" fn(lua_state: *mut c_void);
 
 #[repr(C)]
 pub struct CoreAPIParam {
-    pub add_core_function: extern "C" fn(name: *const u8, len: u32, func: *const c_void),
-    pub get_core_function: extern "C" fn(name: *const u8, len: u32) -> *const c_void,
+    // Core functions
+    pub functions: *const CoreAPIFunctions,
     // Logging api
     pub log: extern "C" fn(LogLevel, msg: *const u8, msg_len: u32),
     // Lua api
     pub lua: *const CoreAPILua,
     // Input api
     pub input: *const CoreAPIInput,
+}
+
+#[repr(C)]
+pub struct CoreAPIFunctions {
+    pub add_core_function: extern "C" fn(name: *const u8, len: u32, func: *const c_void),
+    pub get_core_function: extern "C" fn(name: *const u8, len: u32) -> *const c_void,
+    pub get_singleton: extern "C" fn(name: *const u8, len: u32) -> *mut c_void,
+    /// Get address from [AddressRepository]
+    pub get_managed_address: extern "C" fn(name: *const u8, len: u32) -> *mut c_void,
+    pub set_managed_address: extern "C" fn(
+        name: *const u8,
+        name_len: u32,
+        pattern: *const u8,
+        pattern_len: u32,
+        offset: i32,
+    ),
 }
 
 #[repr(C)]

@@ -30,18 +30,19 @@ pub extern "C" fn ExtInitialize(param: &'static luaf_include::CoreAPIParam) -> i
     let api = API::get();
 
     // 添加imgui api for core
-    api.add_core_function(
+    let functions = api.functions();
+    functions.add_core_function(
         "Render::core_imgui_initialize",
         render::imgui_core_initialize as _,
     );
-    api.add_core_function("Render::core_imgui_render", render::imgui_core_render as _);
+    functions.add_core_function("Render::core_imgui_render", render::imgui_core_render as _);
 
     // 添加imgui api for plugin
-    api.add_core_function(
+    functions.add_core_function(
         "Render::add_on_imgui_render",
         render::add_on_imgui_render as _,
     );
-    api.add_core_function(
+    functions.add_core_function(
         "Render::remove_on_imgui_render",
         render::remove_on_imgui_render as _,
     );
