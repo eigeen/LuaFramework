@@ -51,6 +51,9 @@ namespace luaf
 		const CoreAPIParam* m_param;
 
 	public:
+		struct Functions;
+
+	public:
 		Api(const CoreAPIParam* param)
 			: m_param{ param }
 		{
@@ -96,14 +99,37 @@ namespace luaf
 
 		template<typename TFunc>
 		void add_core_function(std::string_view name, TFunc* fun) {
-			m_param->add_core_function(name.data(), 0, fun);
+			m_param->functions->add_core_function(name.data(), 0, fun);
 		}
 
 		template<typename TFunc>
 		TFunc* get_core_function(std::string_view method) const {
-			return static_cast<TFunc*>(m_param->get_core_function(method.data(), 0));
+			return static_cast<TFunc*>(m_param->functions->get_core_function(method.data(), 0));
 		}
 
+		template<typename T>
+		T* get_singleton(std::string_view name) {
+			return static_cast<T*>(m_param->functions->get_singleton(name.data(), 0));
+		}
+
+		template<typename T>
+		T* get_managed_address(std::string_view name) {
+			return static_cast<T*>(m_param->functions->get_managed_address(name.data(), 0));
+		}
+
+		void set_managed_address(std::string_view name, std::string_view pattern, int offset) {
+			m_param->functions->set_managed_address(name.data(), 0, pattern.data(), 0, offset);
+		}
+
+		template<typename T>
+		T* get_or_set_managed_address(std::string_view name, std::string_view pattern, int offset) {
+			T* result = get_managed_address<T>(name);
+			if (result == nullptr) {
+				set_managed_address(name, pattern, offset);
+				result = get_managed_address<T>(name);
+			}
+			return result;
+		}
 	};
 
 	// Static Logger, easier to use.
