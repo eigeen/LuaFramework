@@ -116,29 +116,31 @@ impl LuaUserData for LuaImgui {
         });
         methods.add_function(
             "combo",
-            |_, (label, selection, values): (CString, usize, Vec<CString>)| unsafe {
-                let preview_value = values.first().cloned().unwrap_or_default();
-                let c_preview_value = CString::new(preview_value).unwrap();
+            |_, (label, selected, values): (CString, usize, Vec<CString>)| unsafe {
+                let preview_value = values
+                    .get(selected - 1)
+                    .cloned()
+                    .unwrap_or_else(|| CString::new("").unwrap());
 
                 let mut selection_changed = false;
-                let mut selection = selection;
-                if cimgui::sys::igBeginCombo(label.as_ptr(), c_preview_value.as_ptr(), 0) {
+                let mut selected = selected;
+                if cimgui::sys::igBeginCombo(label.as_ptr(), preview_value.as_ptr(), 0) {
                     for (key_m1, value) in values.iter().enumerate() {
                         let key = key_m1 + 1;
                         if cimgui::sys::igSelectable_Bool(
                             value.as_ptr(),
-                            selection == key,
+                            selected == key,
                             0,
                             *ImVec2::default(),
                         ) {
-                            selection = key;
+                            selected = key;
                             selection_changed = true;
                         }
                     }
 
                     cimgui::sys::igEndCombo();
                 }
-                Ok((selection_changed, selection))
+                Ok((selection_changed, selected))
             },
         );
 
