@@ -217,13 +217,6 @@ function Structure.get_nested_field(tbl)
 
     for key in pairs(tbl._record) do
         local value = tbl[key]
-        if type(value) == "table" then
-            print(string.format("key: %s, value: %s", tostring(key), FormatPretty.table(value, {
-                show_metatable = true
-            })))
-        else
-            print(string.format("key: %s, value: %s", tostring(key), tostring(value)))
-        end
         if key == "_ptr" then
             result[key] = value
             goto continue_nested_field
