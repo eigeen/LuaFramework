@@ -209,4 +209,40 @@ function Structure.field_def(offset, ty, ptr)
     }
 end
 
+---Get nested field value from definition table
+---@param tbl table
+---@return table
+function Structure.get_nested_field(tbl)
+    local result = {}
+
+    for key in pairs(tbl._record) do
+        local value = tbl[key]
+        if type(value) == "table" then
+            print(string.format("key: %s, value: %s", tostring(key), FormatPretty.table(value, {
+                show_metatable = true
+            })))
+        else
+            print(string.format("key: %s, value: %s", tostring(key), tostring(value)))
+        end
+        if key == "_ptr" then
+            result[key] = value
+            goto continue_nested_field
+        end
+
+        if type(value) == "table" then
+            local nested = Structure.get_nested_field(value)
+            if nested then
+                result[key] = nested
+                goto continue_nested_field
+            end
+        end
+
+        result[key] = value
+
+        ::continue_nested_field::
+    end
+
+    return result
+end
+
 return Structure
