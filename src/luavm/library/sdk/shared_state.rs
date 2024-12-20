@@ -54,8 +54,7 @@ impl SharedState {
         let value_stateless = LuaValueStateless::from_lua(value, lua)?;
 
         self.states.lock().insert(key_str, value_stateless);
-
-        todo!()
+        Ok(())
     }
 
     pub fn get_state_lua(&self, lua: &Lua, key: LuaValue) -> LuaResult<LuaValue> {

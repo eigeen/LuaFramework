@@ -21,23 +21,23 @@ function Mutex:get_lock_state_key()
 end
 
 function Mutex:is_locked()
-    local locker = sdk.ShardState.get(self:get_lock_state_key())
+    local locker = sdk.SharedState.get(self:get_lock_state_key())
     return locker ~= nil
 end
 
 function Mutex:is_owning_lock()
-    local locker = sdk.ShardState.get(self:get_lock_state_key())
-    return locker ~= nil
+    return self.owning
 end
 
 ---@return boolean
 function Mutex:lock()
     -- Check if the mutex is already locked
-    local locker = sdk.ShardState.get(self:get_lock_state_key())
+    local locker = sdk.SharedState.get(self:get_lock_state_key())
+    print("locker: ", tostring(locker))
     if locker then
         return false
     else
-        sdk.ShardState.set("mutex_" .. tostring(self.label), self.id)
+        sdk.SharedState.set("mutex_" .. tostring(self.label), self.id)
         self.owning = true
         return true
     end
@@ -45,9 +45,9 @@ end
 
 ---@return boolean
 function Mutex:unlock()
-    local locker = sdk.ShardState.get(self:get_lock_state_key())
+    local locker = sdk.SharedState.get(self:get_lock_state_key())
     if locker and locker == self.id then
-        sdk.ShardState.set("mutex_" .. tostring(self.label), nil)
+        sdk.SharedState.set("mutex_" .. tostring(self.label), nil)
         self.owning = false
         return true
     end

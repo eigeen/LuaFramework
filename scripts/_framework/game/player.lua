@@ -29,6 +29,20 @@ function Player.get_master_player()
                 id = Structure.field_def(0x6278, "i32")
             }
         },
+        frame_speed_multiplier = {
+            get = function(_ptr)
+                local a = sSetObject:offset(0x78, 0x10, 0x80)
+                local b = _ptr:offset(0x10):read_i32()
+                local mul_ptr = sdk.LuaPtr(a:to_integer() + 0xF8 * b + 0x9C)
+                return mul_ptr:read_f32()
+            end,
+            set = function(_ptr, value)
+                local a = sSetObject:offset(0x78, 0x10, 0x80)
+                local b = _ptr:offset(0x10):read_i32()
+                local mul_ptr = sdk.LuaPtr(a:to_integer() + 0xF8 * b + 0x9C)
+                mul_ptr:write_f32(value)
+            end
+        },
         map_data = Structure.field_def(0x7D20, "pointer")
     }
 
