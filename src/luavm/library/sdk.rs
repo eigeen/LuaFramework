@@ -9,6 +9,7 @@ pub mod frida;
 pub mod input;
 pub mod luaptr;
 pub mod memory;
+pub mod shared_state;
 pub mod string;
 
 pub struct SdkModule;
@@ -42,6 +43,8 @@ impl LuaModule for SdkModule {
         luaptr::LuaPtr::register_library(lua, &sdk_table)?;
         // string子模块
         string::StringModule::register_library(lua, &sdk_table)?;
+        // shared_state子模块
+        shared_state::ShardStateModule::register_library(lua, &sdk_table)?;
         // frida子模块
         frida::FridaModule::register_library(lua, &sdk_table)?;
         // ffi_call子模块

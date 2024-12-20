@@ -94,6 +94,13 @@ local function is_field_def(tbl)
     return false
 end
 
+local function is_func_table(tbl)
+    if tbl["get"] and tbl["set"] then
+        return true
+    end
+    return false
+end
+
 -- for cross-reference, predefine here
 local StructureMeta = nil
 local Structure = nil
@@ -118,6 +125,10 @@ StructureMeta = {
                 _ptr = value._ptr
             end
             return get_field(_ptr, value)
+        end
+        if is_func_table(value) then
+            -- function table
+            return value.get(_ptr)
         end
 
         -- nested structure
@@ -148,6 +159,11 @@ StructureMeta = {
                 _ptr = tbl_value._ptr
             end
             set_field(_ptr, tbl_value, value)
+            return
+        end
+        if is_func_table(tbl_value) then
+            -- function table
+            tbl_value.set(_ptr, value)
             return
         end
 
@@ -226,8 +242,8 @@ function Structure.get_nested_field(tbl)
             local nested = Structure.get_nested_field(value)
             if nested then
                 result[key] = nested
-                goto continue_nested_field
             end
+            goto continue_nested_field
         end
 
         result[key] = value
