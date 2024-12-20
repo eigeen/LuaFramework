@@ -241,16 +241,22 @@ extern "C" fn get_core_function(name: *const u8, len: u32) -> *const c_void {
 
 extern "C" fn get_singleton(name: *const u8, len: u32) -> *mut c_void {
     let name = from_ffi_str(name, len);
-    SingletonManager::instance()
+
+    let result = SingletonManager::instance()
         .get_ptr(name)
-        .unwrap_or(std::ptr::null_mut())
+        .unwrap_or(std::ptr::null_mut());
+    log::debug!("Get singleton: {} -> {:p}", name, result);
+    result
 }
 
 extern "C" fn get_managed_address(name: *const u8, len: u32) -> *mut c_void {
     let name = from_ffi_str(name, len);
-    AddressRepository::instance()
+
+    let result = AddressRepository::instance()
         .get_ptr(name)
-        .unwrap_or(std::ptr::null_mut())
+        .unwrap_or(std::ptr::null_mut());
+    log::debug!("Get managed address: {} -> {:p}", name, result);
+    result
 }
 
 extern "C" fn set_managed_address(
@@ -262,6 +268,12 @@ extern "C" fn set_managed_address(
 ) {
     let name = from_ffi_str(name, name_len);
     let pattern = from_ffi_str(pattern, pattern_len);
+    log::debug!(
+        "Set managed address: {} -> {} (offset: {})",
+        name,
+        pattern,
+        offset
+    );
 
     AddressRepository::instance().set_record(AddressRecord {
         name: name.to_string(),

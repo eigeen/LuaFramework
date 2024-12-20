@@ -95,6 +95,24 @@ impl AddressRepository {
             "E8 ?? ?? ?? ?? 48 8B 4B 08 0F 57 FF 48 8B",
             -32,
         );
+        Self::set_record_inner(
+            &mut inner,
+            "GUITitle:Play",
+            "48 89 83 D8 1C 00 00 48 8D BB 08 29 00 00",
+            -42,
+        );
+        Self::set_record_inner(
+            &mut inner,
+            "D3DRender12:SwapChainPresentCall",
+            "FF 50 40 C6 83 D9 10 00 00 01 85 C0 75 1A 41 FF C4 44 8D 78 01",
+            0,
+        );
+        Self::set_record_inner(
+            &mut inner,
+            "D3DRender11:SwapChainPresentCall",
+            "FF 50 40 8B F0 85 C0 75 5F FF C3 3B 9F A0 14 00 00",
+            0,
+        );
 
         Self {
             inner: Mutex::new(inner),
