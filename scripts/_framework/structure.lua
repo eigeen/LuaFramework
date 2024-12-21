@@ -101,12 +101,22 @@ local function is_func_table(tbl)
     return false
 end
 
+local function mt_add_field(tbl, name, def)
+    local raw_tbl = rawget(tbl, "_record")
+    rawset(raw_tbl, name, def)
+end
+
 -- for cross-reference, predefine here
 local StructureMeta = nil
 local Structure = nil
 
 StructureMeta = {
     __index = function(tbl, key)
+        -- methods
+        if key == "add_fields" then
+            return mt_add_field
+        end
+
         local raw_tbl = rawget(tbl, "_record")
         local value = rawget(raw_tbl, key)
         if value == nil then

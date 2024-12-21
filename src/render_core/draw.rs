@@ -51,6 +51,14 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
             log::error!("Failed to reload all scripts: {}", e);
         }
     }
+    ui.same_line();
+    if ui.button("Open Folder") {
+        if let Ok(abs_path) = std::fs::canonicalize(LuaVMManager::LUA_SCRIPTS_DIR) {
+            let _ = std::process::Command::new("explorer.exe")
+                .arg(abs_path)
+                .spawn();
+        }
+    }
 
     ui.text("Scripts");
 

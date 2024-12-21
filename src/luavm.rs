@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{atomic::AtomicBool, Arc, LazyLock, Weak},
+    sync::{Arc, LazyLock, Weak},
 };
 
 use library::LuaModule;
@@ -42,6 +42,7 @@ impl LuaVMId {
 #[derive(Default)]
 pub struct LuaVMManager {
     inner: Mutex<LuaVMManagerInner>,
+    last_load_path: Mutex<Option<String>>,
 }
 
 impl LuaVMManager {
@@ -161,19 +162,25 @@ impl LuaVMManager {
             }
         }
 
-        Ok(vms)
-    }
+        self.last_load_path
+            .lock()
+            .replace(dir_path.as_ref().to_string_lossy().to_string());
 
-    /// 移除所有虚拟机
-    pub fn remove_physical_vms(&self) {
-        let mut inner = self.inner.lock();
-        inner.remove_pyhsical_vms();
+        Ok(vms)
     }
 
     /// 重新加载所有虚拟机
     pub fn reload_physical_vms(&self) -> Result<()> {
         self.inner.lock().remove_pyhsical_vms();
-        self.auto_load_vms(Self::LUA_SCRIPTS_DIR)?;
+        // 移除共享状态
+        library::sdk::shared_state::SharedState::instance().clear_states();
+        // 加载
+        let last_load_path = self
+            .last_load_path
+            .lock()
+            .clone()
+            .unwrap_or(Self::LUA_SCRIPTS_DIR.to_string());
+        self.auto_load_vms(&last_load_path)?;
         Ok(())
     }
 
@@ -392,7 +399,6 @@ mod tests {
 
         let manager = LuaVMManager::instance();
         manager.auto_load_vms("./test_files").unwrap();
-        manager.remove_physical_vms();
-        manager.auto_load_vms("./test_files").unwrap();
+        manager.reload_physical_vms().unwrap();
     }
 }

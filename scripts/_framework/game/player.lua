@@ -1,6 +1,7 @@
 local Structure = require("_framework.structure")
 
 local sWwiseBgmManager = sdk.get_singleton("sWwiseBgmManager")
+local sSetObject = sdk.get_singleton("sSetObject")
 
 ---@class Player
 local Player = {}

@@ -71,6 +71,10 @@ impl SharedState {
         }
     }
 
+    pub fn clear_states(&self) {
+        self.states.lock().clear();
+    }
+
     fn lua_value_to_key(value: &LuaValue) -> String {
         format!(
             "{}:{}",

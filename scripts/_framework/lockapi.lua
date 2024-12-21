@@ -33,7 +33,6 @@ end
 function Mutex:lock()
     -- Check if the mutex is already locked
     local locker = sdk.SharedState.get(self:get_lock_state_key())
-    print("locker: ", tostring(locker))
     if locker then
         return false
     else
