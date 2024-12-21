@@ -17,10 +17,7 @@ pub fn init_game_command() -> Result<()> {
                 "reload" => {
                     log::info!("Reloading LuaFramework scripts");
 
-                    LuaVMManager::instance().remove_all_vms();
-                    if let Err(e) =
-                        LuaVMManager::instance().auto_load_vms(LuaVMManager::LUA_SCRIPTS_DIR)
-                    {
+                    if let Err(e) = LuaVMManager::instance().reload_physical_vms() {
                         log::error!("Failed to reload LuaFramework scripts: {}", e);
                     };
                 }

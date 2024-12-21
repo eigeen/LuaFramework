@@ -83,7 +83,15 @@ impl RenderManager {
     }
 
     /// 渲染回调
-    pub fn render(&self, ctx_raw: *mut imgui_sys::ImGuiContext) {
+    pub fn render_imgui(&self, _: *mut imgui_sys::ImGuiContext) {
+        // Lua回调函数 on_imgui
+        let api = API::get();
+        api.lua().with_lua_lock(|| {
+            LuaBinding::instance().invoke_on_imgui();
+        });
+    }
+
+    pub fn render_draw(&self, ctx_raw: *mut imgui_sys::ImGuiContext) {
         // C回调函数
         for (_, callback) in self.render_callbacks.iter() {
             unsafe {
@@ -91,7 +99,7 @@ impl RenderManager {
                 func(ctx_raw);
             }
         }
-        // Lua回调函数
+        // Lua回调函数 on_imgui
         let api = API::get();
         api.lua().with_lua_lock(|| {
             LuaBinding::instance().invoke_on_draw();
@@ -233,12 +241,6 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         io.mouse_draw_cursor = any_focusing || any_hovering;
     }
 
-    if !render_manager.show {
-        // 隐藏时不渲染
-        ui.end_frame_early();
-        return ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData;
-    }
-
     // 设置默认字体
     let mut has_default_font = false;
     if let Some(fontid) = render_manager.get_font(RenderManager::DEFAULT_FONT_NAME) {
@@ -246,11 +248,21 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         has_default_font = true;
     }
 
+    // 调用外部渲染函数 on_draw
+    let ctx_ptr = imgui_sys::igGetCurrentContext();
+    render_manager.render_draw(ctx_ptr);
+
+    if !render_manager.show {
+        // 隐藏时不渲染基础窗口和相关信息
+        ui.end_frame_early();
+        return ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData;
+    }
+
     // 基础窗口
     draw::draw_basic_window(ui, |_ui| {
-        // 调用外部渲染函数
+        // 调用外部渲染函数 on_imgui
         let ctx_ptr = imgui_sys::igGetCurrentContext();
-        render_manager.render(ctx_ptr);
+        render_manager.render_imgui(ctx_ptr);
     });
 
     if has_default_font {

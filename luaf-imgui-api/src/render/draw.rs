@@ -23,7 +23,9 @@ where
 
             ui.text("Some text here...");
 
-            draw_script_generated_ui(ui, script_ui_draw);
+            draw_script_manager_tab(ui);
+
+            draw_script_generated_tab(ui, script_ui_draw);
         });
 }
 
@@ -35,7 +37,17 @@ pub fn draw_about_tab(ui: &cimgui::Ui) {
     ui.text("123");
 }
 
-pub fn draw_script_generated_ui<F>(ui: &cimgui::Ui, script_ui_draw: F)
+fn draw_script_manager_tab(ui: &cimgui::Ui) {
+    if !ui.collapsing_header("Script Manager", TreeNodeFlags::empty()) {
+        return;
+    };
+
+    if ui.button("Reload All") {
+        todo!()
+    }
+}
+
+fn draw_script_generated_tab<F>(ui: &cimgui::Ui, script_ui_draw: F)
 where
     F: FnOnce(&cimgui::Ui),
 {

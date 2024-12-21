@@ -56,16 +56,24 @@ impl LuaBinding {
         self.states.values()
     }
 
+    pub fn invoke_on_imgui(&self) {
+        self.iter_states().for_each(|lua| {
+            if let Err(e) = self.invoke_draw_callback(lua, "_on_imgui") {
+                log::error!("Error while invoking on_imgui: {}", e);
+            }
+        });
+    }
+
     pub fn invoke_on_draw(&self) {
         self.iter_states().for_each(|lua| {
-            if let Err(e) = self.invoke_on_draw_inner(lua) {
+            if let Err(e) = self.invoke_draw_callback(lua, "_on_draw") {
                 log::error!("Error while invoking on_draw: {}", e);
             }
         });
     }
 
-    fn invoke_on_draw_inner(&self, lua: &Lua) -> LuaResult<()> {
-        let draw_fn = lua.globals().get::<LuaValue>("_on_draw")?;
+    fn invoke_draw_callback(&self, lua: &Lua, name: &str) -> LuaResult<()> {
+        let draw_fn = lua.globals().get::<LuaValue>(name)?;
         if let LuaValue::Function(draw_fn) = draw_fn {
             draw_fn.call::<()>(())?;
         }

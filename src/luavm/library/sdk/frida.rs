@@ -523,7 +523,7 @@ mod tests {
     fn test_interceptor() {
         init_logging();
 
-        let luavm_shared = LuaVMManager::instance().create_uninit_vm("test_interceptor.lua");
+        let luavm_shared = LuaVMManager::instance().create_virtual_vm("test_interceptor.lua");
 
         luavm_shared.load_luaf_libs().unwrap();
 

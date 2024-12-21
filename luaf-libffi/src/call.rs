@@ -44,7 +44,7 @@ impl CallError {
 }
 
 #[repr(i32)]
-#[derive(Debug, Clone, Copy, FromRepr)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, FromRepr)]
 pub enum ArgType {
     Void = 0,
     UInt8 = 1,
@@ -128,18 +128,7 @@ pub unsafe extern "C" fn CallCFunction(
     }
 
     // 转换返回值类型
-    let mut has_ret = false;
-
-    let ffi_ret_type = match ArgType::from_repr(ret_type) {
-        Some(rv) => {
-            has_ret = true;
-            rv.as_ffi_type()
-        }
-        None => {
-            has_ret = false;
-            ArgType::Void.as_ffi_type()
-        }
-    };
+    let ffi_ret_type = ArgType::from_repr(ret_type).unwrap_or(ArgType::Void);
 
     // 构建参数
     let mut cif: libffi::raw::ffi_cif = Default::default();
@@ -148,7 +137,7 @@ pub unsafe extern "C" fn CallCFunction(
         &mut cif,
         ffi_abi_FFI_DEFAULT_ABI,
         ffi_arg_types.len(),
-        ffi_ret_type,
+        ffi_ret_type.as_ffi_type(),
         ffi_arg_types.as_mut_ptr(),
     );
     if let Err(e) = result {
@@ -166,10 +155,9 @@ pub unsafe extern "C" fn CallCFunction(
         ret_raw.as_mut_ptr() as *mut c_void,
         ffi_args.as_mut_ptr(),
     );
-    // let ret_raw: usize = libffi::low::call(&mut cif, CodePtr(ptr), ffi_args.as_mut_ptr());
 
     // 写入返回值
-    if has_ret {
+    if ffi_ret_type != ArgType::Void {
         ret_val.write(ret_raw.assume_init());
     }
 
@@ -278,7 +266,10 @@ mod tests {
                 let v = std::mem::transmute::<i32, f32>(ret_val as i32);
                 v as f64
             });
-            eprintln!("call test_float_add(1.1, 2.2) = {}", test_float_add(1.1, 2.2));
+            eprintln!(
+                "call test_float_add(1.1, 2.2) = {}",
+                test_float_add(1.1, 2.2)
+            );
         }
     }
 }
