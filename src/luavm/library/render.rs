@@ -1,105 +1,17 @@
-use std::{
-    collections::HashMap,
-    ffi::{c_void, CString},
-};
+use std::ffi::CString;
+
+use super::LuaModule;
 
 use cimgui::sys::traits::Zero;
 use mlua::prelude::*;
 
-use luaf_include::API;
+pub struct RenderModule;
 
-pub fn setup_lua_binding() {
-    let api = API::get();
-    // 添加 Lua hook
-    api.lua().on_lua_state_created(on_lua_state_created);
-    api.lua().on_lua_state_destroyed(on_lua_state_destroyed);
-}
-
-unsafe extern "C" fn on_lua_state_created(lua_state: *mut c_void) {
-    LuaBinding::instance().add_state(lua_state);
-}
-
-unsafe extern "C" fn on_lua_state_destroyed(lua_state: *mut c_void) {
-    LuaBinding::instance().remove_state(lua_state);
-}
-
-#[derive(Default)]
-pub struct LuaBinding {
-    states: HashMap<usize, Lua>,
-}
-
-impl LuaBinding {
-    pub fn instance() -> &'static mut LuaBinding {
-        static mut INSTANCE: Option<LuaBinding> = None;
-        unsafe {
-            if INSTANCE.is_none() {
-                INSTANCE = Some(LuaBinding::default());
-            }
-            INSTANCE.as_mut().unwrap()
-        }
-    }
-
-    pub fn add_state(&mut self, state: *mut c_void) {
-        let lua = unsafe { Lua::init_from_ptr(state as *mut _) };
-        if let Err(e) = init_bindings(&lua) {
-            log::error!("Error while initializing bindings: {}", e);
-        };
-
-        self.states.insert(state as usize, lua);
-    }
-
-    pub fn remove_state(&mut self, state: *mut c_void) {
-        self.states.retain(|key, _| *key != state as usize);
-    }
-
-    pub fn iter_states(&self) -> impl Iterator<Item = &Lua> {
-        self.states.values()
-    }
-
-    pub fn invoke_on_imgui(&self) {
-        self.iter_states().for_each(|lua| {
-            if let Err(e) = self.invoke_draw_callback(lua, "_on_imgui") {
-                log::error!("Error while invoking on_imgui: {}", e);
-            }
-        });
-    }
-
-    pub fn invoke_on_draw(&self) {
-        self.iter_states().for_each(|lua| {
-            if let Err(e) = self.invoke_draw_callback(lua, "_on_draw") {
-                log::error!("Error while invoking on_draw: {}", e);
-            }
-        });
-    }
-
-    fn invoke_draw_callback(&self, lua: &Lua, name: &str) -> LuaResult<()> {
-        let draw_fn = lua.globals().get::<LuaValue>(name)?;
-        if let LuaValue::Function(draw_fn) = draw_fn {
-            draw_fn.call::<()>(())?;
-        }
-
+impl LuaModule for RenderModule {
+    fn register_library(_lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
+        registry.set("imgui", LuaImgui)?;
         Ok(())
     }
-}
-
-fn init_bindings(lua: &Lua) -> LuaResult<()> {
-    let globals = lua.globals();
-
-    // 为core添加回调设置
-    let core_table = globals
-        .get::<LuaTable>("core")
-        .or_else(|_| lua.create_table())?;
-    core_table.set(
-        "on_draw",
-        lua.create_function(|lua, fun: LuaFunction| {
-            lua.globals().set("_on_draw", fun)?;
-            Ok(())
-        })?,
-    )?;
-
-    globals.set("imgui", LuaImgui)?;
-
-    Ok(())
 }
 
 pub struct LuaImgui;

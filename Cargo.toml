@@ -7,7 +7,7 @@ edition = "2021"
 
 [workspace]
 resolver = "2"
-members = ["luaf-include", "luaf-libffi", "luaf-imgui-api"]
+members = ["luaf-include", "luaf-libffi"]
 
     [workspace.dependencies]
     mlua = { version = "0.10", features = ["luajit", "vendored"] }
@@ -26,8 +26,17 @@ luaf-include = { path = "./luaf-include" }
 
 mlua = { workspace = true, features = ["send", "serialize"] }
 
+# 将在之后版本完全弃用
 mhw_toolkit = { path = "../mhw-toolkit", features = ["logger"] }
+
+# 如果本地没有以下依赖，请使用注释的版本
+
 safetyhook = { path = "../../safetyhook-pure-rs" }
+# safetyhook = { git = "https://github.com/eigeen/safetyhook-rs.git" }
+
+cimgui = { path = "../../cimgui-linking-rs/cimgui" }
+# cimgui = { git = "https://github.com/eigeen/cimgui-rs.git" }
+
 windows = { version = "0.58", features = ["Win32_System_SystemServices"] }
 # frida-gum 动态Hook
 frida-gum = { version = "0.15", features = [

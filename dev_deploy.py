@@ -1,7 +1,7 @@
 import shutil
 import os
 
-os.system("cargo build --release --package lua-framework --package luaf-libffi --package luaf-imgui-api")
+os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 shutil.copy(
     "target/release/lua_framework.dll",
@@ -12,11 +12,6 @@ shutil.copy(
     "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/extensions/luaf_libffi.dll",
 )
 shutil.copy(
-    "target/release/luaf_imgui_api.dll",
-    "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/extensions/luaf_imgui_api.dll",
-)
-shutil.copy(
     "mhw-imgui-core/x64/Release/mhw-imgui-core.dll",
     "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/extensions/mhw-imgui-core.dll",
 )
-shutil.copytree("scripts/_framework", "C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World/lua_framework/scripts/_framework", dirs_exist_ok=True)

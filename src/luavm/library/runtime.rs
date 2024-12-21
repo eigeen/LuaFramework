@@ -40,6 +40,22 @@ impl LuaModule for RuntimeModule {
                 Ok(())
             })?,
         )?;
+        // 设置on_imgui回调
+        core_table.set(
+            "on_imgui",
+            lua.create_function(|lua, fun: LuaFunction| {
+                lua.globals().set("_on_imgui", fun)?;
+                Ok(())
+            })?,
+        )?;
+        // 设置on_draw回调
+        core_table.set(
+            "on_draw",
+            lua.create_function(|lua, fun: LuaFunction| {
+                lua.globals().set("_on_draw", fun)?;
+                Ok(())
+            })?,
+        )?;
 
         registry.set("core", core_table)?;
 

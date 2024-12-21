@@ -16,6 +16,7 @@ mod game;
 mod input;
 mod luavm;
 mod memory;
+mod render;
 mod utility;
 
 #[cfg(test)]
@@ -48,30 +49,7 @@ fn main_entry() -> anyhow::Result<()> {
     game::singleton::SingletonManager::instance().initialize()?;
     utility::add_dll_directory("lua_framework/bin")?;
 
-    bootstrap::on_post_mh_main_ctor(|| {
-        // 处理单例
-        game::singleton::SingletonManager::instance().parse_singletons();
-
-        // 注册扩展
-        let (total, success) = extension::CoreAPI::instance().load_core_exts()?;
-        log::info!(
-            "Loaded {} extensions successfully, {} failed.",
-            success,
-            total - success
-        );
-
-        // 初始加载 LuaVM
-        log::info!("Loading scripts...");
-        luavm::LuaVMManager::instance().auto_load_vms(luavm::LuaVMManager::LUA_SCRIPTS_DIR)?;
-
-        // 设置 on_update 回调
-        game::on_update::on_map_clock_local(|| {
-            luavm::LuaVMManager::instance().trigger_on_update()
-        })?;
-
-        log::info!("LuaFramework initialized.");
-        Ok(())
-    })?;
+    bootstrap::setup()?;
 
     Ok(())
 }

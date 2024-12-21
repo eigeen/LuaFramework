@@ -4,6 +4,7 @@ fn main() {
     println!("cargo:rustc-link-search=lib");
     println!("cargo:rustc-link-lib=static=LoaderFFI");
     println!("cargo:rustc-link-lib=static=loader");
+    println!("cargo:rustc-link-lib=static=cimgui");
 
     if cfg!(target_os = "windows") {
         let mut res = winres::WindowsResource::new();

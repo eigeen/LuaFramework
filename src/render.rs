@@ -5,17 +5,17 @@ use anyhow::Context as _;
 use cimgui::{sys as imgui_sys, FontConfig, FontGlyphRanges, FontId, FontSource, Io};
 use cimgui::{Context, DrawData, WindowFocusedFlags, WindowHoveredFlags};
 use log::{debug, error, warn};
-use luaf_include::{KeyCode, API};
+use luaf_include::KeyCode;
 use rand::RngCore;
 
-use crate::lua_binding::LuaBinding;
+use crate::input::Input;
+use crate::luavm::LuaVMManager;
 
 mod draw;
-mod style;
-
-static mut IMGUI_CONTEXT: Option<Context> = None;
 
 type RenderCallback = unsafe extern "C" fn(*mut imgui_sys::ImGuiContext);
+
+static mut IMGUI_CONTEXT: Option<Context> = None;
 
 pub struct RenderManager {
     /// 渲染回调列表，key为窗口句柄，value为回调函数指针（C函数）
@@ -53,8 +53,6 @@ impl RenderManager {
     }
 
     pub fn get_mut() -> &'static mut RenderManager {
-        // static mut INSTANCE: LazyCell<RefCell<RenderManager>> =
-        //     LazyCell::new(|| RefCell::new(RenderManager::new()));
         static mut INSTANCE: Option<RenderManager> = None;
 
         unsafe {
@@ -83,12 +81,9 @@ impl RenderManager {
     }
 
     /// 渲染回调
-    pub fn render_imgui(&self, _: *mut imgui_sys::ImGuiContext) {
+    pub fn render_imgui(&self) {
         // Lua回调函数 on_imgui
-        let api = API::get();
-        api.lua().with_lua_lock(|| {
-            LuaBinding::instance().invoke_on_imgui();
-        });
+        LuaVMManager::instance().invoke_fn("on_imgui");
     }
 
     pub fn render_draw(&self, ctx_raw: *mut imgui_sys::ImGuiContext) {
@@ -99,11 +94,8 @@ impl RenderManager {
                 func(ctx_raw);
             }
         }
-        // Lua回调函数 on_imgui
-        let api = API::get();
-        api.lua().with_lua_lock(|| {
-            LuaBinding::instance().invoke_on_draw();
-        });
+        // Lua回调函数 on_draw
+        LuaVMManager::instance().invoke_fn("on_draw");
     }
 
     /// 根据名字获取字体
@@ -143,26 +135,6 @@ impl RenderManager {
     }
 }
 
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Size {
-    w: u32,
-    h: u32,
-}
-
-#[repr(C)]
-#[derive(Debug, Clone, Copy, Default)]
-pub struct Vec2 {
-    x: f32,
-    y: f32,
-}
-
-impl Vec2 {
-    pub fn new(x: f32, y: f32) -> Self {
-        Self { x, y }
-    }
-}
-
 pub unsafe extern "C" fn imgui_core_initialize(
     viewport_size: Size,
     window_size: Size,
@@ -173,11 +145,6 @@ pub unsafe extern "C" fn imgui_core_initialize(
     if IMGUI_CONTEXT.is_none() {
         IMGUI_CONTEXT = Some(Context::create());
     }
-
-    let ctx = IMGUI_CONTEXT.as_mut().unwrap();
-
-    // 设置主题
-    style::set_imgui_style(ctx.style_mut());
 
     let render_manager = RenderManager::get_mut();
 
@@ -221,8 +188,7 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
     let render_manager = RenderManager::get_mut();
 
     // 处理快捷键显示切换
-    if API::get()
-        .input()
+    if Input::instance()
         .keyboard()
         .is_pressed(render_manager.menu_key)
     {
@@ -248,26 +214,21 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         has_default_font = true;
     }
 
+    if render_manager.show {
+        // 基础窗口
+        draw::draw_basic_window(ui, |_ui| {
+            // 调用外部渲染函数 on_imgui
+            render_manager.render_imgui();
+        });
+
+        if has_default_font {
+            imgui_sys::igPopFont();
+        }
+    }
+
     // 调用外部渲染函数 on_draw
     let ctx_ptr = imgui_sys::igGetCurrentContext();
     render_manager.render_draw(ctx_ptr);
-
-    if !render_manager.show {
-        // 隐藏时不渲染基础窗口和相关信息
-        ui.end_frame_early();
-        return ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData;
-    }
-
-    // 基础窗口
-    draw::draw_basic_window(ui, |_ui| {
-        // 调用外部渲染函数 on_imgui
-        let ctx_ptr = imgui_sys::igGetCurrentContext();
-        render_manager.render_imgui(ctx_ptr);
-    });
-
-    if has_default_font {
-        imgui_sys::igPopFont();
-    }
 
     ui.end_frame_early();
 
@@ -275,11 +236,22 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
     ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData
 }
 
-/// 注册渲染回调函数 Render::add_on_imgui_render(callback: [RenderCallback])
-pub unsafe extern "C" fn add_on_imgui_render(callback: RenderCallback) -> u64 {
-    RenderManager::get_mut().register_render_callback(callback)
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Size {
+    w: u32,
+    h: u32,
 }
 
-pub unsafe extern "C" fn remove_on_imgui_render(id: u64) -> bool {
-    RenderManager::get_mut().remove_render_callback(id)
+#[repr(C)]
+#[derive(Debug, Clone, Copy, Default)]
+pub struct Vec2 {
+    x: f32,
+    y: f32,
+}
+
+impl Vec2 {
+    pub fn new(x: f32, y: f32) -> Self {
+        Self { x, y }
+    }
 }

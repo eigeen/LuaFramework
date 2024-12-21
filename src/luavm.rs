@@ -103,10 +103,6 @@ impl LuaVMManager {
         Ok(luavm_shared)
     }
 
-    pub fn inner(&self) -> &Mutex<LuaVMManagerInner> {
-        &self.inner
-    }
-
     /// 根据虚拟机路径获取虚拟机
     pub fn get_vm_by_path(&self, path: &str) -> Option<SharedLuaVM> {
         let inner = self.inner.lock();
@@ -184,15 +180,15 @@ impl LuaVMManager {
         inner.disable_vm(id)
     }
 
-    pub fn trigger_on_update(&self) {
+    pub fn invoke_fn(&self, fn_name: &str) {
         let inner = self.inner.lock();
-        for luavm in inner.vms.values() {
+        for (_, luavm) in inner.iter_vms() {
             let globals = luavm.lua().globals();
-            let Ok(on_update) = globals.get::<LuaFunction>("_on_update") else {
+            let Ok(fun) = globals.get::<LuaFunction>(format!("_{fn_name}")) else {
                 continue;
             };
-            if let Err(e) = on_update.call::<()>(()) {
-                log::error!("`on_update` in LuaVM({}) error: {}", luavm.get_name(), e);
+            if let Err(e) = fun.call::<()>(()) {
+                log::error!("`{fn_name}` in LuaVM({}) error: {}", luavm.get_name(), e);
             };
         }
     }
@@ -223,6 +219,12 @@ pub struct LuaVMManagerInner {
 }
 
 impl LuaVMManagerInner {
+    pub fn iter_vms(&self) -> impl Iterator<Item = (&LuaVMId, &SharedLuaVM)> {
+        self.vms
+            .iter()
+            .filter(|(id, _)| !self.disabled_vms.contains(id))
+    }
+
     fn add_vm(&mut self, id: LuaVMId, path: &str, vm: SharedLuaVM) {
         if vm.is_virtual() {
             self.virtual_vms.insert(id);
@@ -344,6 +346,7 @@ impl LuaVM {
         library::runtime::RuntimeModule::register_library(&self.lua, &globals)?;
         library::utility::UtilityModule::register_library(&self.lua, &globals)?;
         library::sdk::SdkModule::register_library(&self.lua, &globals)?;
+        library::render::RenderModule::register_library(&self.lua, &globals)?;
 
         Ok(())
     }

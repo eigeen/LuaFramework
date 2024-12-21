@@ -10,9 +10,14 @@ if os.path.exists("dist"):
 os.makedirs("dist")
 
 # run rust build command
-os.system("cargo build --release --package lua-framework --package luaf-libffi --package luaf-imgui-api")
+os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 file_src_dst = [
+    {
+        "type": "file",
+        "src": "lib/cimgui.dll",
+        "dst": "cimgui.dll",
+    },
     {
         "type": "file",
         "src": "target/release/lua_framework.dll",
@@ -25,18 +30,13 @@ file_src_dst = [
     },
     {
         "type": "file",
-        "src": "target/release/luaf_imgui_api.dll",
-        "dst": "lua_framework/extensions/luaf_imgui_api.dll",
-    },
-    {
-        "type": "file",
         "src": "mhw-imgui-core/x64/Release/mhw-imgui-core.dll",
         "dst": "lua_framework/extensions/mhw-imgui-core.dll",
     },
     # assets
     {
         "type": "file",
-        "src": "luaf-imgui-api/assets/SourceHanSansCN-Regular.otf",
+        "src": "assets/SourceHanSansCN-Regular.otf",
         "dst": "lua_framework/fonts/SourceHanSansCN-Regular.otf",
     },
     # scripts
