@@ -42,11 +42,11 @@ pub fn setup() -> Result<(), Error> {
             // 注册CoreAPI函数
             CoreAPI::instance().register_function(
                 "Render::core_imgui_initialize",
-                crate::render::imgui_core_initialize as _,
+                crate::render_core::imgui_core_initialize as _,
             );
             CoreAPI::instance().register_function(
                 "Render::core_imgui_render",
-                crate::render::imgui_core_render as _,
+                crate::render_core::imgui_core_render as _,
             );
 
             // 注册扩展

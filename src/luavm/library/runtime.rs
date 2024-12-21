@@ -32,6 +32,7 @@ impl LuaModule for RuntimeModule {
         unsafe {
             core_table.set("get_state_ptr", lua.create_c_function(lua_get_state_ptr)?)?;
         }
+        core_table.set("msg", lua.create_function(msg)?)?;
         // 设置on_update回调
         core_table.set(
             "on_update",
@@ -98,6 +99,12 @@ fn get_name(lua: &Lua) -> String {
     lua.globals()
         .get::<String>("_name")
         .unwrap_or_else(|_| "Script".to_string())
+}
+
+fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+    let args = format_args(lua, msgs)?;
+    crate::utility::show_error_msgbox(&args.join(" "), &get_name(lua));
+    Ok(())
 }
 
 fn info(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {

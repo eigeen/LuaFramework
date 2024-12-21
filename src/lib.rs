@@ -16,7 +16,7 @@ mod game;
 mod input;
 mod luavm;
 mod memory;
-mod render;
+mod render_core;
 mod utility;
 
 #[cfg(test)]
@@ -37,7 +37,9 @@ mod logger {
 }
 
 fn panic_hook(info: &std::panic::PanicHookInfo) {
-    error!("LuaFramework panic: {}", info);
+    let msg = format!("LuaFramework panic: {}", info);
+    error!("{}", msg);
+    utility::show_error_msgbox(&msg, "LuaFramework Panic");
 }
 
 fn main_entry() -> anyhow::Result<()> {

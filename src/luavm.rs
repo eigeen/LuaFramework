@@ -1,7 +1,7 @@
 use std::{
     collections::{HashMap, HashSet},
     path::Path,
-    sync::{Arc, LazyLock, Weak},
+    sync::{atomic::AtomicBool, Arc, LazyLock, Weak},
 };
 
 use library::LuaModule;
@@ -56,16 +56,16 @@ impl LuaVMManager {
     ///
     /// 此操作会加载默认的库。
     ///
-    /// path: 虚拟文件路径
-    pub fn create_virtual_vm(&self, path: &str) -> SharedLuaVM {
+    /// name: 虚拟名称，用于标识虚拟机。会自动在前面加上 `virtual:`
+    pub fn create_virtual_vm(&self, name: &str) -> SharedLuaVM {
         let mut inner = self.inner.lock();
 
-        let virtual_path = format!("virtual:{}", path);
-        let luavm = LuaVM::new_with_libs(&virtual_path).unwrap();
+        let virtual_name = format!("virtual:{}", name);
+        let luavm = LuaVM::new_with_libs(&virtual_name).unwrap();
         let id = luavm.id();
 
         let luavm_shared = Arc::new(luavm);
-        inner.add_vm(id, &virtual_path, luavm_shared.clone());
+        inner.add_vm(id, &virtual_name, luavm_shared.clone());
 
         luavm_shared
     }
@@ -75,14 +75,23 @@ impl LuaVMManager {
     where
         P: AsRef<Path>,
     {
-        log::debug!("Loading script file '{}'", script_path.as_ref().display());
+        let file_name = script_path
+            .as_ref()
+            .file_name()
+            .unwrap()
+            .to_string_lossy()
+            .to_string();
+        let path = script_path.as_ref().to_string_lossy().replace('\\', "/");
+        log::debug!("Loading script file '{}'", path);
 
-        let luavm = LuaVM::new_with_libs(script_path.as_ref().to_str().unwrap())?;
+        let luavm = LuaVM::new_with_libs(&file_name)?;
 
         // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
         let luavm_shared = Arc::new(luavm);
-        self.inner.lock().vms.insert(id, luavm_shared.clone());
+        self.inner
+            .lock()
+            .add_vm(id, &file_name, luavm_shared.clone());
 
         {
             // 加载自定义库
@@ -101,15 +110,6 @@ impl LuaVMManager {
         }
 
         Ok(luavm_shared)
-    }
-
-    /// 根据虚拟机路径获取虚拟机
-    pub fn get_vm_by_path(&self, path: &str) -> Option<SharedLuaVM> {
-        let inner = self.inner.lock();
-        inner
-            .vm_paths
-            .get(path)
-            .and_then(|id| inner.vms.get(id).cloned())
     }
 
     /// 根据Lua实例获取虚拟机
@@ -146,6 +146,13 @@ impl LuaVMManager {
                 continue;
             }
 
+            // 检查是否被禁用
+            let file_name = path.file_name().unwrap_or_default().to_string_lossy();
+            if !self.inner.lock().is_vm_name_enabled(file_name.as_ref()) {
+                log::debug!("Script file '{}' is disabled. Skipping.", file_name);
+                continue;
+            }
+
             match self.create_vm_with_file(&path) {
                 Ok(vm) => vms.push(vm.id()),
                 Err(e) => {
@@ -170,16 +177,6 @@ impl LuaVMManager {
         Ok(())
     }
 
-    pub fn enable_vm(&self, id: LuaVMId) -> Result<()> {
-        let mut inner = self.inner.lock();
-        inner.enable_vm(id)
-    }
-
-    pub fn disable_vm(&self, id: LuaVMId) -> Result<()> {
-        let mut inner = self.inner.lock();
-        inner.disable_vm(id)
-    }
-
     pub fn invoke_fn(&self, fn_name: &str) {
         let inner = self.inner.lock();
         for (_, luavm) in inner.iter_vms() {
@@ -188,17 +185,17 @@ impl LuaVMManager {
                 continue;
             };
             if let Err(e) = fun.call::<()>(()) {
-                log::error!("`{fn_name}` in LuaVM({}) error: {}", luavm.get_name(), e);
+                log::error!("`{fn_name}` in LuaVM({}) error: {}", luavm.name(), e);
             };
         }
     }
 
     pub fn run_with_lock<F>(&self, f: F) -> LuaResult<()>
     where
-        F: FnOnce(&LuaVMManagerInner) -> LuaResult<()>,
+        F: FnOnce(&mut LuaVMManagerInner) -> LuaResult<()>,
     {
-        let inner = self.inner.lock();
-        f(&inner)
+        let mut inner = self.inner.lock();
+        f(&mut inner)
     }
 
     /// 从Lua中获取虚拟机ID
@@ -210,67 +207,65 @@ impl LuaVMManager {
 #[derive(Default)]
 pub struct LuaVMManagerInner {
     vms: HashMap<LuaVMId, SharedLuaVM>,
-    /// 记录虚拟机脚本路径到id的映射
-    vm_paths: HashMap<String, LuaVMId>,
-    /// 记录非实体虚拟机
-    virtual_vms: HashSet<LuaVMId>,
-    /// 记录虚拟机是否禁用
-    disabled_vms: HashSet<LuaVMId>,
+    /// 记录虚拟机名称到id的映射
+    vm_names: HashMap<String, LuaVMId>,
+    /// 记录虚拟机是否禁用，记录脚本名以便重载时复用禁用表。
+    disabled_vms: HashSet<String>,
 }
 
 impl LuaVMManagerInner {
     pub fn iter_vms(&self) -> impl Iterator<Item = (&LuaVMId, &SharedLuaVM)> {
-        self.vms
-            .iter()
-            .filter(|(id, _)| !self.disabled_vms.contains(id))
+        self.vms.iter()
     }
 
-    fn add_vm(&mut self, id: LuaVMId, path: &str, vm: SharedLuaVM) {
-        if vm.is_virtual() {
-            self.virtual_vms.insert(id);
-        }
+    pub fn disabled_vms(&self) -> impl Iterator<Item = &String> {
+        self.disabled_vms.iter()
+    }
+
+    /// 启用虚拟机
+    ///
+    /// 此方法只会标记为启用，不会进行重载
+    pub fn enable_vm(&mut self, name: &str) -> Result<()> {
+        self.disabled_vms.remove(name);
+        Ok(())
+    }
+
+    /// 禁用虚拟机
+    ///
+    /// 此方法只会标记为禁用，不会进行重载
+    pub fn disable_vm(&mut self, name: &str) -> Result<()> {
+        self.disabled_vms.insert(name.to_string());
+        Ok(())
+    }
+
+    pub fn is_vm_name_enabled(&self, name: &str) -> bool {
+        !self.disabled_vms.contains(name)
+    }
+
+    fn add_vm(&mut self, id: LuaVMId, name: &str, vm: SharedLuaVM) {
         self.vms.insert(id, vm);
-        self.vm_paths.insert(path.to_string(), id);
+        self.vm_names.insert(name.to_string(), id);
     }
 
     fn remove_vm(&mut self, id: LuaVMId) -> Option<SharedLuaVM> {
         let vm_or = self.vms.remove(&id);
-        if let Some(vm) = &vm_or {
-            self.vm_paths.retain(|_, v| *v != id);
-            if vm.is_virtual() {
-                self.virtual_vms.remove(&id);
-            }
+        if vm_or.is_some() {
+            self.vm_names.retain(|_, v| *v != id);
         }
 
         vm_or
     }
 
-    fn enable_vm(&mut self, id: LuaVMId) -> Result<()> {
-        if !self.vms.contains_key(&id) {
-            return Err(Error::LuaVMNotFound);
-        }
-        self.disabled_vms.remove(&id);
-        Ok(())
-    }
-
-    fn disable_vm(&mut self, id: LuaVMId) -> Result<()> {
-        if !self.vms.contains_key(&id) {
-            return Err(Error::LuaVMNotFound);
-        }
-        self.disabled_vms.insert(id);
-        Ok(())
-    }
-
     fn remove_pyhsical_vms(&mut self) {
-        self.vms.retain(|_, vm| !vm.is_virtual());
-        self.vm_paths.retain(|_, id| !self.vms.contains_key(id));
+        self.vms.retain(|_, vm| vm.is_virtual());
+        self.vm_names.retain(|_, id| self.vms.contains_key(id));
     }
 }
 
 pub struct LuaVM {
     id: LuaVMId,
-    path: String,
     lua: Lua,
+    name: String,
 }
 
 impl Drop for LuaVM {
@@ -280,22 +275,22 @@ impl Drop for LuaVM {
         let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&self.lua).unwrap();
         crate::extension::CoreAPI::instance().dispatch_lua_state_destroyed(lua_state_ptr);
         // 移除frida hooks
-        log::debug!("Removing LuaVM({}) frida hooks", self.get_name());
+        log::debug!("Removing LuaVM({}) frida hooks", self.name());
         let result = library::sdk::frida::FridaModule::remove_all_hooks(&self.lua);
         if let Err(e) = result {
             log::error!(
                 "Failed to remove LuaVM({}) frida inline hooks: {}",
-                self.get_name(),
+                self.name(),
                 e
             );
         }
 
-        log::debug!("LuaVM({}) removed", self.get_name());
+        log::debug!("LuaVM({}) removed", self.name());
     }
 }
 
 impl LuaVM {
-    fn new_empty(path: &str) -> Result<Self> {
+    fn new_empty(name: &str) -> Result<Self> {
         let lua = Lua::new_with(
             LuaStdLib::ALL_SAFE,
             LuaOptions::default().catch_rust_panics(true),
@@ -303,14 +298,13 @@ impl LuaVM {
 
         Ok(Self {
             id: LuaVMId::new(),
-            path: path.to_string(),
             lua,
+            name: name.to_string(),
         })
     }
 
-    pub fn new_with_libs(path: &str) -> Result<Self> {
-        let path = path.replace('\\', "/");
-        let luavm = Self::new_empty(&path)?;
+    pub fn new_with_libs(name: &str) -> Result<Self> {
+        let luavm = Self::new_empty(name)?;
         luavm.load_luaf_libs()?;
         // 发布注册事件
         let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&luavm.lua)?;
@@ -323,12 +317,13 @@ impl LuaVM {
         self.id
     }
 
-    pub fn path(&self) -> &str {
-        &self.path
-    }
-
     pub fn lua(&self) -> &Lua {
         &self.lua
+    }
+
+    /// 获取虚拟机脚本名称
+    pub fn name(&self) -> &str {
+        &self.name
     }
 
     /// 加载 LuaFramework 自定义库
@@ -336,8 +331,7 @@ impl LuaVM {
         let globals = self.lua.globals();
 
         globals.set("_id", self.id)?;
-        globals.set("_path", self.path.clone())?;
-        globals.set("_name", self.get_name())?;
+        globals.set("_name", self.name())?;
         // 设置模块搜索路径
         self.lua
             .load(r#"package.path = package.path .. ";lua_framework/scripts/?.lua""#)
@@ -355,22 +349,13 @@ impl LuaVM {
     pub fn load_script(&self, script: &str) -> LuaResult<()> {
         self.lua
             .load(script)
-            .set_name(format!("={}", self.get_name()))
+            .set_name(format!("={}", self.name()))
             .exec()
     }
 
     /// 是否是虚拟脚本
     pub fn is_virtual(&self) -> bool {
-        self.path.starts_with("virtual:")
-    }
-
-    /// 获取虚拟机脚本名称
-    pub fn get_name(&self) -> &str {
-        if self.is_virtual() {
-            &self.path
-        } else {
-            Path::new(&self.path).file_name().unwrap().to_str().unwrap()
-        }
+        self.name.starts_with("virtual:")
     }
 }
 

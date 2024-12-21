@@ -2,8 +2,11 @@ use std::sync::atomic::{self, AtomicBool};
 
 use windows::{
     core::PCWSTR,
-    Win32::System::LibraryLoader::{
-        AddDllDirectory, SetDefaultDllDirectories, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+    Win32::{
+        System::LibraryLoader::{
+            AddDllDirectory, SetDefaultDllDirectories, LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+        },
+        UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR},
     },
 };
 
@@ -36,4 +39,17 @@ pub fn add_dll_directory(rel_path: &str) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+pub fn show_error_msgbox(msg: &str, caption: &str) {
+    let lptext = to_wstring_bytes_with_nul(msg);
+    let lpcaption = to_wstring_bytes_with_nul(caption);
+    unsafe {
+        let _ = MessageBoxW(
+            None,
+            PCWSTR(lptext.as_ptr()),
+            PCWSTR(lpcaption.as_ptr()),
+            MB_ICONERROR,
+        );
+    }
 }
