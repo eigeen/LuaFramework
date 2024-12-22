@@ -16,16 +16,10 @@ where
         .focus_on_appearing(false)
         .opened(&mut render_manager.show)
         .build(|| {
-            ui.text("Hello, this is a basic ImGui window!");
-            if ui.button("Click Me") {
-                log::info!("Button clicked!");
-            }
+            ui.text(concat!("Lua Framework v", env!("CARGO_PKG_VERSION")));
+            ui.text("Default menu key: F7");
 
-            draw_about_tab(ui);
-
-            ui.separator();
-
-            ui.text("Some text here...");
+            draw_options_tab(ui);
 
             draw_script_manager_tab(ui);
 
@@ -33,12 +27,12 @@ where
         });
 }
 
-pub fn draw_about_tab(ui: &cimgui::Ui) {
+pub fn draw_options_tab(ui: &cimgui::Ui) {
     if !ui.collapsing_header("Options", TreeNodeFlags::empty()) {
         return;
     };
 
-    ui.text("123");
+    ui.text("TODO")
 }
 
 fn draw_script_manager_tab(ui: &cimgui::Ui) {

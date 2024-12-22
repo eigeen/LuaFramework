@@ -79,6 +79,30 @@ impl LuaUserData for LuaImgui {
             cimgui::sys::igNewLine();
             Ok(())
         });
+        methods.add_function("begin_disabled", |_, disabled: Option<bool>| unsafe {
+            let disabled = disabled.unwrap_or(true);
+            cimgui::sys::igBeginDisabled(disabled);
+            Ok(())
+        });
+        methods.add_function("end_disabled", |_, ()| unsafe {
+            cimgui::sys::igEndDisabled();
+            Ok(())
+        });
+        methods.add_function("push_item_width", |_, width: f32| unsafe {
+            cimgui::sys::igPushItemWidth(width);
+            Ok(())
+        });
+        methods.add_function("pop_item_width", |_, ()| unsafe {
+            cimgui::sys::igPopItemWidth();
+            Ok(())
+        });
+        methods.add_function("set_next_item_width", |_, width: f32| unsafe {
+            cimgui::sys::igSetNextItemWidth(width);
+            Ok(())
+        });
+        methods.add_function("calc_current_item_width", |_, ()| unsafe {
+            Ok(cimgui::sys::igCalcItemWidth())
+        });
 
         methods.add_function(
             "begin_window",
