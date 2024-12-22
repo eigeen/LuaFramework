@@ -1,5 +1,7 @@
 use mlua::{lua_State, prelude::*};
 
+use crate::error::Error;
+
 use super::LuaModule;
 
 const RUNTIME_LUA_MODULE: &str = include_str!("runtime.lua");
@@ -33,6 +35,20 @@ impl LuaModule for RuntimeModule {
             core_table.set("get_state_ptr", lua.create_c_function(lua_get_state_ptr)?)?;
         }
         core_table.set("msg", lua.create_function(msg)?)?;
+        core_table.set(
+            "version",
+            lua.create_function(|_, ()| {
+                const VERSION_STR: &str = env!("CARGO_PKG_VERSION");
+                let version_parts = VERSION_STR.split('.').collect::<Vec<_>>();
+                let mut version_iter = version_parts.iter().map(|s| s.parse::<i32>().unwrap());
+                Ok((
+                    version_iter.next().unwrap(),
+                    version_iter.next().unwrap(),
+                    version_iter.next().unwrap(),
+                ))
+            })?,
+        )?;
+        core_table.set("require_version", lua.create_function(require_version)?)?;
         // 设置on_update回调
         core_table.set(
             "on_update",
@@ -83,7 +99,7 @@ impl RuntimeModule {
     }
 }
 
-fn format_args(lua: &Lua, args: mlua::Variadic<LuaValue>) -> mlua::Result<Vec<String>> {
+fn format_args(lua: &Lua, args: mlua::Variadic<LuaValue>) -> LuaResult<Vec<String>> {
     let mut outs = vec![];
 
     for arg in args {
@@ -101,37 +117,37 @@ fn get_name(lua: &Lua) -> String {
         .unwrap_or_else(|_| "Script".to_string())
 }
 
-fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     crate::utility::show_error_msgbox(&args.join(" "), &get_name(lua));
     Ok(())
 }
 
-fn info(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn info(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     log::info!("[{}] {}", get_name(lua), args.join(" "));
     Ok(())
 }
 
-fn warn(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn warn(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     log::warn!("[{}] {}", get_name(lua), args.join(" "));
     Ok(())
 }
 
-fn error(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn error(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     log::error!("[{}] {}", get_name(lua), args.join(" "));
     Ok(())
 }
 
-fn debug(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn debug(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     log::debug!("[{}] DEBUG {}", get_name(lua), args.join(" "));
     Ok(())
 }
 
-fn trace(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> mlua::Result<()> {
+fn trace(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     log::trace!("[{}] {}", get_name(lua), args.join(" "));
     Ok(())
@@ -144,4 +160,17 @@ unsafe extern "C-unwind" fn lua_get_state_ptr(L: *mut lua_State) -> std::ffi::c_
     mlua::ffi::lua_pushinteger(L, lua_state_ptr);
 
     1
+}
+
+fn require_version(_lua: &Lua, require_version: String) -> LuaResult<()> {
+    let req = semver::VersionReq::parse(&require_version).map_err(|e| e.into_lua_err())?;
+
+    const VERSION_STR: &str = env!("CARGO_PKG_VERSION");
+    let cur_version = semver::Version::parse(VERSION_STR).unwrap();
+
+    if !req.matches(&cur_version) {
+        return Err(Error::LuaFVersionMismatch(VERSION_STR, require_version).into_lua_err());
+    }
+
+    Ok(())
 }

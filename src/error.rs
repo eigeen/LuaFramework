@@ -28,6 +28,8 @@ pub enum Error {
     InvalidValue(&'static str, String),
     #[error("Number too large to keep precision")]
     NumberTooLarge,
+    #[error("Require LuaFramework version {1}, but current version is {0}, please update LuaFramework or script.")]
+    LuaFVersionMismatch(&'static str, String),
     #[error("Failed to initialize core extension: code {0}")]
     InitCoreExtension(i32),
     #[error("Failed to parse integer from '{0}'")]
