@@ -1,4 +1,7 @@
-use std::sync::atomic::{self, AtomicBool};
+use std::{
+    path::Path,
+    sync::atomic::{self, AtomicBool},
+};
 
 use windows::{
     core::PCWSTR,
@@ -20,12 +23,17 @@ pub fn to_wstring_bytes_with_nul(s: &str) -> Vec<u16> {
 }
 
 /// 添加 DLL 加载目录
-pub fn add_dll_directory(rel_path: &str) -> Result<(), Error> {
+pub fn add_dll_directory<P: AsRef<Path>>(rel_path: P) -> Result<(), Error> {
     if !DEFAULT_SETTED.load(atomic::Ordering::SeqCst) {
         unsafe {
             SetDefaultDllDirectories(LOAD_LIBRARY_SEARCH_DEFAULT_DIRS)?;
         }
         DEFAULT_SETTED.store(true, atomic::Ordering::SeqCst);
+    }
+
+    if !rel_path.as_ref().exists() {
+        log::warn!("bin directory not found, skipping.");
+        return Ok(());
     }
 
     let abs_path = std::fs::canonicalize(rel_path)?;

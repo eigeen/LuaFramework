@@ -39,6 +39,7 @@ file_src_dst = [
         "src": "assets/SourceHanSansCN-Regular.otf",
         "dst": "lua_framework/fonts/SourceHanSansCN-Regular.otf",
     },
+    {"type": "create_dir", "dst": "lua_framework/bin"},
     # scripts
     {"type": "create_dir", "dst": "lua_framework/scripts"},
     {

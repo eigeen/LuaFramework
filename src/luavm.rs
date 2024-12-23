@@ -125,14 +125,15 @@ impl LuaVMManager {
     where
         P: AsRef<Path>,
     {
-        let abs_path = std::fs::canonicalize(&dir_path).unwrap_or_default();
         if !dir_path.as_ref().exists() {
             log::warn!(
-                "Script directory '{}' (abs: '{}') not exists",
+                "Script directory '{}' not exists",
                 dir_path.as_ref().display(),
-                abs_path.display()
-            )
+            );
+            return Ok(Vec::new());
         }
+
+        let abs_path = std::fs::canonicalize(&dir_path).unwrap_or_default();
         log::info!("Scanning script directory '{}'", abs_path.display());
 
         let mut vms = Vec::new();
