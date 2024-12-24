@@ -39,10 +39,17 @@ impl LuaVMId {
     }
 }
 
+#[derive(Debug, Clone)]
+pub struct LastLoadInfo {
+    pub path: String,
+    #[allow(dead_code)]
+    pub time: std::time::Instant,
+}
+
 #[derive(Default)]
 pub struct LuaVMManager {
     inner: Mutex<LuaVMManagerInner>,
-    last_load_path: Mutex<Option<String>>,
+    last_load_info: Mutex<Option<LastLoadInfo>>,
 }
 
 impl LuaVMManager {
@@ -166,9 +173,10 @@ impl LuaVMManager {
             }
         }
 
-        self.last_load_path
-            .lock()
-            .replace(dir_path.as_ref().to_string_lossy().to_string());
+        self.last_load_info.lock().replace(LastLoadInfo {
+            path: dir_path.as_ref().to_string_lossy().to_string(),
+            time: std::time::Instant::now(),
+        });
 
         Ok(vms)
     }
@@ -179,12 +187,12 @@ impl LuaVMManager {
         // 移除共享状态
         library::sdk::shared_state::SharedState::instance().clear_states();
         // 加载
-        let last_load_path = self
-            .last_load_path
-            .lock()
-            .clone()
-            .unwrap_or(Self::LUA_SCRIPTS_DIR.to_string());
-        self.auto_load_vms(&last_load_path)?;
+        let info = self.last_load_info.lock().clone();
+        if let Some(info) = info.as_ref() {
+            self.auto_load_vms(&info.path)?;
+        } else {
+            self.auto_load_vms(Self::LUA_SCRIPTS_DIR)?;
+        }
         Ok(())
     }
 
@@ -197,7 +205,7 @@ impl LuaVMManager {
                 continue;
             };
             if let Err(e) = fun.call::<()>(()) {
-                let err_msg = format!("`{fn_name}` in LuaVM({}) error: {}", luavm.name(), e);
+                let err_msg = format!("`{fn_name}` in LuaVM({}) error:\n{}", luavm.name(), e);
                 crate::error::set_last_error(err_msg.clone());
                 log::error!("{}", err_msg);
             };

@@ -78,7 +78,7 @@ impl LuaModule for RuntimeModule {
             "get_last_error",
             lua.create_function(|lua, ()| {
                 crate::error::get_last_error()
-                    .map(|s| s.into_lua(lua))
+                    .map(|s| s.error.into_lua(lua))
                     .unwrap_or(Ok(LuaValue::Nil))
             })?,
         )?;

@@ -56,7 +56,15 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
 
     // 显示最后错误信息
     if let Some(err) = crate::error::get_last_error() {
-        ui.text_colored([255.0, 0.0, 0.0, 1.0], err); // red
+        let elapsed = err.time.elapsed();
+        let time_msg = if elapsed.as_secs() < 10 {
+            format!("{:.1}s", elapsed.as_secs_f32())
+        } else {
+            format!("{}s", elapsed.as_secs())
+        };
+
+        let err_msg = format!("Last error found {} ago\n{}", time_msg, err.error);
+        ui.text_colored([255.0, 0.0, 0.0, 1.0], err_msg); // red
         ui.separator();
     }
 

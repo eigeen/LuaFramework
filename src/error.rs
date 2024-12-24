@@ -40,14 +40,23 @@ pub enum Error {
     SingletonNotFound(String),
 }
 
-static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
+#[derive(Debug, Clone)]
+pub struct LastErrorInfo {
+    pub error: String,
+    pub time: std::time::Instant,
+}
 
-pub fn get_last_error() -> Option<String> {
+static LAST_ERROR: Mutex<Option<LastErrorInfo>> = Mutex::new(None);
+
+pub fn get_last_error() -> Option<LastErrorInfo> {
     LAST_ERROR.lock().clone()
 }
 
 pub fn set_last_error(err: String) {
-    *LAST_ERROR.lock() = Some(err);
+    *LAST_ERROR.lock() = Some(LastErrorInfo {
+        error: err,
+        time: std::time::Instant::now(),
+    });
 }
 
 pub fn clear_last_error() {
