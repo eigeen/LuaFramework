@@ -63,6 +63,39 @@ impl LuaUserData for LuaImgui {
                 Ok((selection_changed, selected))
             },
         );
+        methods.add_function("render_text", |_, (pos, text): (ImVec2, CString)| unsafe {
+            cimgui::sys::igRenderText(*pos, text.as_ptr(), std::ptr::null(), false);
+            Ok(())
+        });
+        methods.add_function(
+            "input_text",
+            |_, (label, value, flags): (CString, CString, Option<i32>)| unsafe {
+                let flags = flags.unwrap_or(0);
+                const BUF_SIZE: usize = 1024;
+                let mut buf: [u8; BUF_SIZE] = [0; BUF_SIZE];
+                let value_bytes = value.as_bytes();
+                buf[..value_bytes.len()].copy_from_slice(value_bytes);
+
+                cimgui::sys::igInputText(
+                    label.as_ptr(),
+                    buf.as_mut_ptr() as *mut i8,
+                    BUF_SIZE,
+                    flags,
+                    None,
+                    std::ptr::null_mut(),
+                );
+
+                let new_value = CString::new(
+                    buf.iter()
+                        .take_while(|&x| *x != 0)
+                        .copied()
+                        .collect::<Vec<u8>>(),
+                )
+                .unwrap();
+
+                Ok(new_value)
+            },
+        );
 
         methods.add_function(
             "same_line",
@@ -121,6 +154,39 @@ impl LuaUserData for LuaImgui {
             cimgui::sys::igEnd();
             Ok(())
         });
+        methods.add_function(
+            "set_next_window_pos",
+            |_, (pos, condition, pivot): (ImVec2, Option<i32>, Option<ImVec2>)| unsafe {
+                let condition = condition.unwrap_or(0);
+                let pivot = pivot.unwrap_or_else(|| pos.clone());
+                cimgui::sys::igSetNextWindowPos(*pos, condition, *pivot);
+                Ok(())
+            },
+        );
+        methods.add_function(
+            "set_next_window_size",
+            |_, (size, condition): (ImVec2, Option<i32>)| unsafe {
+                let condition = condition.unwrap_or(0);
+                cimgui::sys::igSetNextWindowSize(*size, condition);
+                Ok(())
+            },
+        );
+        methods.add_function("set_next_window_bg_alpha", |_, alpha: f32| unsafe {
+            cimgui::sys::igSetNextWindowBgAlpha(alpha);
+            Ok(())
+        });
+        methods.add_function("set_next_window_focus", |_, ()| unsafe {
+            cimgui::sys::igSetNextWindowFocus();
+            Ok(())
+        });
+        methods.add_function(
+            "set_next_window_collapsed",
+            |_, (collapsed, condition): (bool, Option<i32>)| unsafe {
+                let condition = condition.unwrap_or(0);
+                cimgui::sys::igSetNextWindowCollapsed(collapsed, condition);
+                Ok(())
+            },
+        );
 
         methods.add_function("collapsing_header", |_, label: CString| unsafe {
             let opened = cimgui::sys::igCollapsingHeader_TreeNodeFlags(label.as_ptr(), 0);
@@ -137,6 +203,7 @@ impl LuaUserData for LuaImgui {
     }
 }
 
+#[derive(Clone)]
 pub struct ImVec2(pub cimgui::sys::ImVec2);
 
 impl FromLua for ImVec2 {
