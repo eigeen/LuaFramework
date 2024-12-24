@@ -185,6 +185,7 @@ impl LuaVMManager {
         Ok(())
     }
 
+    /// 调用已设置的回调函数，无参数。
     pub fn invoke_fn(&self, fn_name: &str) {
         let inner = self.inner.lock();
         for (_, luavm) in inner.iter_vms() {
@@ -286,11 +287,7 @@ impl Drop for LuaVM {
         log::debug!("Removing LuaVM({}) frida hooks", self.name());
         let result = library::sdk::frida::FridaModule::remove_all_hooks(&self.lua);
         if let Err(e) = result {
-            log::error!(
-                "Failed to remove LuaVM({}) frida inline hooks: {}",
-                self.name(),
-                e
-            );
+            log::error!("Failed to remove LuaVM({}) frida hooks: {}", self.name(), e);
         }
 
         log::debug!("LuaVM({}) removed", self.name());

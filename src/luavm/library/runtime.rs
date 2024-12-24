@@ -25,9 +25,9 @@ impl LuaModule for RuntimeModule {
             .get::<LuaTable>("core")
             .or_else(|_| lua.create_table())?;
         core_table.set(
-            "debug_mode",
+            "unsafe_mode",
             lua.create_function(|lua, enable: bool| {
-                lua.globals().set("_debug_mode", enable)?;
+                lua.globals().set("_unsafe_mode", enable)?;
                 Ok(())
             })?,
         )?;
@@ -84,9 +84,9 @@ impl LuaModule for RuntimeModule {
 }
 
 impl RuntimeModule {
-    /// 是否启用调试模式
-    pub fn is_debug_mode(lua: &Lua) -> bool {
-        lua.globals().get::<bool>("_debug_mode").unwrap_or(false)
+    /// 是否启用不安全内存访问模式
+    pub fn is_unsafe_mode(lua: &Lua) -> bool {
+        lua.globals().get::<bool>("_unsafe_mode").unwrap_or(false)
     }
 
     /// 获取 lua_State 指针

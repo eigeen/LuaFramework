@@ -1,6 +1,5 @@
 use std::sync::Once;
 
-use log::error;
 use windows::Win32::{
     Foundation::{BOOL, TRUE},
     System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
@@ -38,7 +37,7 @@ mod logger {
 
 fn panic_hook(info: &std::panic::PanicHookInfo) {
     let msg = format!("LuaFramework panic: {}", info);
-    error!("{}", msg);
+    log::error!("{}", msg);
     utility::show_error_msgbox(&msg, "LuaFramework Panic");
 }
 
@@ -63,7 +62,7 @@ extern "system" fn DllMain(_: usize, call_reason: u32, _: usize) -> BOOL {
         DLL_PROCESS_ATTACH => {
             MAIN_THREAD_ONCE.call_once(|| {
                 if let Err(e) = main_entry() {
-                    error!("{}", e);
+                    log::error!("{}", e);
                 }
             });
         }

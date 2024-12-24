@@ -70,7 +70,7 @@ with open("Cargo.toml", "r", encoding="utf-8") as f:
 
 # create zip file
 archive = zipfile.ZipFile(
-    f"dist/lua-framework_{version}.zip", "w", zipfile.ZIP_DEFLATED
+    f"dist/lua-framework_v{version}.zip", "w", zipfile.ZIP_DEFLATED
 )
 
 for src_dst in file_src_dst:

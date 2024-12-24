@@ -333,22 +333,22 @@ const INTEGER_TYPE_SIZE_MAP: &[(&str, u32)] = &[
 ];
 
 fn read_bytes(lua: &Lua, address: usize, size: u32) -> Result<Vec<u8>> {
-    let safe = RuntimeModule::is_debug_mode(lua);
-    let bytes = MemoryUtils::read(address, size as usize, safe)?;
+    let is_unsafe = RuntimeModule::is_unsafe_mode(lua);
+    let bytes = MemoryUtils::read(address, size as usize, !is_unsafe)?;
 
     Ok(bytes)
 }
 
 fn quick_read_bytes(lua: &Lua, address: usize, size: u32) -> Result<[u8; 8]> {
-    let safe = RuntimeModule::is_debug_mode(lua);
-    let bytes = MemoryUtils::quick_read(address, size, safe)?;
+    let is_unsafe = RuntimeModule::is_unsafe_mode(lua);
+    let bytes = MemoryUtils::quick_read(address, size, !is_unsafe)?;
 
     Ok(bytes)
 }
 
 fn write_bytes(lua: &Lua, address: usize, bytes: &[u8]) -> Result<()> {
-    let safe = RuntimeModule::is_debug_mode(lua);
-    MemoryUtils::write(address, bytes, safe)?;
+    let is_unsafe = RuntimeModule::is_unsafe_mode(lua);
+    MemoryUtils::write(address, bytes, !is_unsafe)?;
 
     Ok(())
 }

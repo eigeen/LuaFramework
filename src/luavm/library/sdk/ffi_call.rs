@@ -64,8 +64,7 @@ fn lua_call_c_function(
     let fun = lua_parse_long_integer(&fun_arg)?;
     // 判断权限
     let is_safe = is_safe.unwrap_or(true);
-    let is_debug = RuntimeModule::is_debug_mode(lua);
-    if is_debug || is_safe {
+    if is_safe {
         MemoryUtils::check_permission_execute(fun as usize).map_err(|e| e.into_lua_err())?;
     }
 
