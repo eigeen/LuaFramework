@@ -1,0 +1,8 @@
+---@class core
+---@field unsafe_mode fun(enable: boolean)
+---@field msg fun(message: string)
+---@field version fun(): integer, integer, integer
+---@field require_version fun(semver: string)
+---@field on_update fun(callback: fun())
+---@field on_imgui fun(callback: fun())
+---@field on_draw fun(callback: fun())

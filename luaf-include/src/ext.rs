@@ -35,7 +35,7 @@ pub struct CoreAPIFunctions {
 pub struct CoreAPILua {
     pub on_lua_state_created: extern "C" fn(OnLuaStateCreatedCb),
     pub on_lua_state_destroyed: extern "C" fn(OnLuaStateDestroyedCb),
-    pub with_lua_lock: extern "C" fn(extern "C" fn(*mut c_void), *mut c_void),
+    pub with_lua_lock: extern "C" fn(extern "C" fn(user_data: *mut c_void), user_data: *mut c_void),
 }
 
 #[repr(C)]

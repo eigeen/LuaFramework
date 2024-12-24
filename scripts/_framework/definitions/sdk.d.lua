@@ -81,7 +81,7 @@ local Input = {
 
 ---@class AddressRepository
 ---@field get fun(name:string): LuaPtr
----@field try_get fun(name:string): table<nil, nil> @ return: (ok: boolean, ptr: LuaPtr|string)
+---@field try_get fun(name:string): table<nil, nil> @ return: (ok: boolean, ptr_or_error: LuaPtr|string)
 ---@field set_record fun() @ 接受 AddressRecord 或 (name:string, pattern:string, offset:integer|nil)
 ---@field get_or_insert fun(): LuaPtr @ 接受 AddressRecord 或 (name:string, pattern:string, offset:integer|nil)。尝试获取已记录的特征码地址，若不存在则插入新记录并获取值。
 

@@ -149,7 +149,7 @@ fn debug(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
 
 fn trace(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::trace!("[{}] {}", get_name(lua), args.join(" "));
+    log::trace!("[{}] TRACE {}", get_name(lua), args.join(" "));
     Ok(())
 }
 
