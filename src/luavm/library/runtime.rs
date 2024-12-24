@@ -74,6 +74,15 @@ impl LuaModule for RuntimeModule {
             })?,
         )?;
 
+        core_table.set(
+            "get_last_error",
+            lua.create_function(|lua, ()| {
+                crate::error::get_last_error()
+                    .map(|s| s.into_lua(lua))
+                    .unwrap_or(Ok(LuaValue::Nil))
+            })?,
+        )?;
+
         registry.set("core", core_table)?;
 
         // 加载 Lua 文件扩展

@@ -58,6 +58,7 @@ impl LuaVMManager {
     /// 此操作会加载默认的库。
     ///
     /// name: 虚拟名称，用于标识虚拟机。会自动在前面加上 `virtual:`
+    #[allow(dead_code)]
     pub fn create_virtual_vm(&self, name: &str) -> SharedLuaVM {
         let mut inner = self.inner.lock();
 
@@ -158,7 +159,9 @@ impl LuaVMManager {
             match self.create_vm_with_file(&path) {
                 Ok(vm) => vms.push(vm.id()),
                 Err(e) => {
-                    log::error!("Failed to load script '{}': {}", path.display(), e)
+                    let err_msg = format!("Failed to load script '{}':\n{}", path.display(), e);
+                    crate::error::set_last_error(err_msg.clone());
+                    log::error!("{}", err_msg);
                 }
             }
         }
@@ -194,7 +197,9 @@ impl LuaVMManager {
                 continue;
             };
             if let Err(e) = fun.call::<()>(()) {
-                log::error!("`{fn_name}` in LuaVM({}) error: {}", luavm.name(), e);
+                let err_msg = format!("`{fn_name}` in LuaVM({}) error: {}", luavm.name(), e);
+                crate::error::set_last_error(err_msg.clone());
+                log::error!("{}", err_msg);
             };
         }
     }
@@ -256,16 +261,10 @@ impl LuaVMManagerInner {
         self.vm_names.insert(name.to_string(), id);
     }
 
-    fn remove_vm(&mut self, id: LuaVMId) -> Option<SharedLuaVM> {
-        let vm_or = self.vms.remove(&id);
-        if vm_or.is_some() {
-            self.vm_names.retain(|_, v| *v != id);
-        }
-
-        vm_or
-    }
-
     fn remove_pyhsical_vms(&mut self) {
+        // 清除错误信息
+        crate::error::clear_last_error();
+
         self.vms.retain(|_, vm| vm.is_virtual());
         self.vm_names.retain(|_, id| self.vms.contains_key(id));
     }

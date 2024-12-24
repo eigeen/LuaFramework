@@ -68,6 +68,13 @@ impl LuaUserData for LuaImgui {
             Ok(())
         });
         methods.add_function(
+            "text_colored",
+            |_, (color, text): (ImVec4, CString)| unsafe {
+                cimgui::sys::igTextColored(*color, text.as_ptr());
+                Ok(())
+            },
+        );
+        methods.add_function(
             "input_text",
             |_, (label, value, flags): (CString, CString, Option<i32>)| unsafe {
                 let flags = flags.unwrap_or(0);
@@ -253,5 +260,70 @@ impl std::ops::Deref for ImVec2 {
 impl Default for ImVec2 {
     fn default() -> Self {
         Self(cimgui::sys::ImVec2::zero())
+    }
+}
+
+#[derive(Clone)]
+pub struct ImVec4(pub cimgui::sys::ImVec4);
+
+impl FromLua for ImVec4 {
+    fn from_lua(value: LuaValue, _: &Lua) -> LuaResult<Self> {
+        let LuaValue::Table(v) = &value else {
+            return Err(LuaError::FromLuaConversionError {
+                from: value.type_name(),
+                to: "ImVec4".to_string(),
+                message: None,
+            });
+        };
+        if v.len()? != 4 {
+            return Err(LuaError::FromLuaConversionError {
+                from: value.type_name(),
+                to: "ImVec4".to_string(),
+                message: Some("table must have 4 elements".to_string()),
+            });
+        }
+
+        let mut vec4 = cimgui::sys::ImVec4 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        };
+
+        let mut arr = v.sequence_values();
+        vec4.x = arr.next().unwrap()?;
+        vec4.y = arr.next().unwrap()?;
+        vec4.z = arr.next().unwrap()?;
+        vec4.w = arr.next().unwrap()?;
+
+        Ok(ImVec4(vec4))
+    }
+}
+
+impl IntoLua for ImVec4 {
+    fn into_lua(self, lua: &Lua) -> LuaResult<LuaValue> {
+        let table = lua.create_table()?;
+        table.set(1, self.0.x)?;
+        table.set(2, self.0.y)?;
+        Ok(LuaValue::Table(table))
+    }
+}
+
+impl std::ops::Deref for ImVec4 {
+    type Target = cimgui::sys::ImVec4;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl Default for ImVec4 {
+    fn default() -> Self {
+        Self(cimgui::sys::ImVec4 {
+            x: 0.0,
+            y: 0.0,
+            z: 0.0,
+            w: 0.0,
+        })
     }
 }

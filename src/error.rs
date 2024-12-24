@@ -1,3 +1,5 @@
+use parking_lot::Mutex;
+
 pub type Result<T> = std::result::Result<T, Error>;
 
 #[derive(Debug, thiserror::Error)]
@@ -26,8 +28,6 @@ pub enum Error {
     LuaVMNotFound,
     #[error("Invalid argument: expected {0}, got {1}")]
     InvalidValue(&'static str, String),
-    #[error("Number too large to keep precision")]
-    NumberTooLarge,
     #[error("Require LuaFramework version {1}, but current version is {0}, please update LuaFramework or script.")]
     LuaFVersionMismatch(&'static str, String),
     #[error("Failed to initialize core extension: code {0}")]
@@ -38,4 +38,18 @@ pub enum Error {
     AddressRecordNotFound(String),
     #[error("Failed to get singleton '{0}'")]
     SingletonNotFound(String),
+}
+
+static LAST_ERROR: Mutex<Option<String>> = Mutex::new(None);
+
+pub fn get_last_error() -> Option<String> {
+    LAST_ERROR.lock().clone()
+}
+
+pub fn set_last_error(err: String) {
+    *LAST_ERROR.lock() = Some(err);
+}
+
+pub fn clear_last_error() {
+    *LAST_ERROR.lock() = None;
 }

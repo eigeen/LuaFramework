@@ -54,6 +54,12 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
         }
     }
 
+    // 显示最后错误信息
+    if let Some(err) = crate::error::get_last_error() {
+        ui.text_colored([255.0, 0.0, 0.0, 1.0], err); // red
+        ui.separator();
+    }
+
     ui.text("Scripts");
 
     let mut changed = false;
