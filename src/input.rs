@@ -4,7 +4,7 @@ use std::{ffi::c_void, mem::MaybeUninit};
 
 pub use luaf_include::{ControllerButton, KeyCode};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::game::{
     mt_type::{GameObject, GameObjectExt},
     singleton::SingletonManager,
@@ -15,19 +15,24 @@ static mut INPUT: Option<Input> = None;
 
 /// 用户输入管理器
 pub struct Input {
-    controller: Controller,
     keyboard: Keyboard,
+    controller: Controller,
 }
 
 impl Input {
     pub fn initialize() -> Result<()> {
-        let controller = Self::get_s_controller()?;
-        let keyboard = Self::get_s_keyboard()?;
+        let singleton_manager = SingletonManager::instance();
+        let keyboard = singleton_manager
+            .get_ptr("sMhKeyboard")
+            .ok_or(Error::SingletonNotFound("sMhKeyboard".to_string()))?;
+        let controller = singleton_manager
+            .get_ptr("sMhSteamController")
+            .ok_or(Error::SingletonNotFound("sMhKeyboard".to_string()))?;
 
         unsafe {
             INPUT = Some(Self {
-                controller: Controller::from_ptr(controller),
                 keyboard: Keyboard::from_ptr(keyboard),
+                controller: Controller::from_ptr(controller),
             })
         }
 
@@ -43,12 +48,12 @@ impl Input {
         }
     }
 
-    pub fn controller(&self) -> &Controller {
-        &self.controller
-    }
-
     pub fn keyboard(&self) -> &Keyboard {
         &self.keyboard
+    }
+
+    pub fn controller(&self) -> &Controller {
+        &self.controller
     }
 
     fn get_s_keyboard() -> Result<*mut c_void> {

@@ -11,22 +11,31 @@ use safetyhook::InlineHook;
 use crate::{
     address::AddressRepository,
     game::mt_type::{EmptyGameObject, GameObjectExt},
+    memory::MemoryUtils,
 };
 use crate::{error::Result, game::mt_type::GameObject};
 
 static mut HOOK: Option<InlineHook> = None;
-
 static mut SINGLETONS_TEMP: LazyLock<RefCell<HashSet<usize>>> =
     LazyLock::new(|| RefCell::new(HashSet::new()));
 
-#[derive(Default)]
+type FuncType = extern "C" fn(*const c_void) -> *const c_void;
+
+unsafe extern "C" fn csystem_ctor_hooked(instance: *const c_void) -> *const c_void {
+    SINGLETONS_TEMP.borrow_mut().insert(instance as usize);
+
+    let original: FuncType = std::mem::transmute(HOOK.as_ref().unwrap().original());
+    original(instance)
+}
+
 pub struct SingletonManager {
     singletons: Mutex<HashMap<String, usize>>,
+    relative_static_defs: Mutex<HashMap<String, RelativeStaticDef>>,
 }
 
 impl SingletonManager {
     pub fn instance() -> &'static Self {
-        static INSTANCE: LazyLock<SingletonManager> = LazyLock::new(SingletonManager::default);
+        static INSTANCE: LazyLock<SingletonManager> = LazyLock::new(SingletonManager::new);
         &INSTANCE
     }
 
@@ -74,7 +83,25 @@ impl SingletonManager {
 
     /// 获取单例地址
     pub fn get_address(&self, name: &str) -> Option<usize> {
-        self.singletons.lock().get(name).cloned()
+        // 从表中获取
+        let result = self.singletons.lock().get(name).cloned();
+        if result.is_some() {
+            return result;
+        }
+
+        // 尝试通过静态地址使用来获取单例地址
+        let singleton_ptr = self.try_get_from_static(name)?;
+        log::debug!(
+            "Found singleton: {} at 0x{:x} from static address scan.",
+            name,
+            singleton_ptr
+        );
+        // 保存
+        self.singletons
+            .lock()
+            .insert(name.to_string(), singleton_ptr);
+
+        Some(singleton_ptr)
     }
 
     /// 获取单例地址（指针形式）
@@ -90,13 +117,70 @@ impl SingletonManager {
             .map(|(name, addr)| (name.clone(), *addr))
             .collect()
     }
+
+    // 通过静态地址使用来获取单例地址
+    fn try_get_from_static(&self, name: &str) -> Option<usize> {
+        let rel_static_defs = self.relative_static_defs.lock();
+        let rel_static_def = rel_static_defs.get(name)?;
+
+        let static_address =
+            match MemoryUtils::scan_relative_static(&rel_static_def.pattern, rel_static_def.offset)
+            {
+                Ok(v) => v,
+                Err(e) => {
+                    log::error!("Failed to scan relative static for {}: {}", name, e);
+                    return None;
+                }
+            };
+
+        if let Err(e) = MemoryUtils::check_permission_read(static_address) {
+            log::error!(
+                "Failed to read static address for {} at 0x{:x}: {}",
+                name,
+                static_address,
+                e
+            );
+            return None;
+        };
+        let singleton_ptr = unsafe { *(static_address as *const usize) };
+
+        Some(singleton_ptr)
+    }
+
+    fn set_relative_static_def(
+        defs: &mut HashMap<String, RelativeStaticDef>,
+        name: &str,
+        pattern: &str,
+        offset: isize,
+    ) {
+        defs.insert(
+            name.to_string(),
+            RelativeStaticDef {
+                pattern: pattern.to_string(),
+                offset,
+            },
+        );
+    }
+
+    fn new() -> Self {
+        let mut defs = HashMap::new();
+        Self::set_relative_static_def(&mut defs, "sMhKeyboard", "48 ?? ?? ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00", 7);
+        Self::set_relative_static_def(
+            &mut defs,
+            "sMhSteamController",
+            "48 8B D9 45 33 C0 48 8B 0D ?? ?? ?? ?? 33 D2 E8 ?? ?? ?? ?? F3",
+            9,
+        );
+
+        Self {
+            singletons: Mutex::new(HashMap::new()),
+            relative_static_defs: Mutex::new(defs),
+        }
+    }
 }
 
-type FuncType = extern "C" fn(*const c_void) -> *const c_void;
-
-unsafe extern "C" fn csystem_ctor_hooked(instance: *const c_void) -> *const c_void {
-    SINGLETONS_TEMP.borrow_mut().insert(instance as usize);
-
-    let original: FuncType = std::mem::transmute(HOOK.as_ref().unwrap().original());
-    original(instance)
+#[derive(Debug, Clone)]
+struct RelativeStaticDef {
+    pattern: String,
+    offset: isize,
 }
