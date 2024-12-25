@@ -39,15 +39,10 @@ pub fn setup() -> Result<(), Error> {
         ON_POST_MH_MAIN_CTOR_CALLBACK = Some(Box::new(|| {
             // 处理单例
             crate::game::singleton::SingletonManager::instance().parse_singletons();
-            // 注册CoreAPI函数
-            CoreAPI::instance().register_function(
-                "Render::core_imgui_initialize",
-                crate::render_core::imgui_core_initialize as _,
-            );
-            CoreAPI::instance().register_function(
-                "Render::core_imgui_render",
-                crate::render_core::imgui_core_render as _,
-            );
+            // 初始化输入
+            crate::input::Input::initialize()?;
+            // 注册Render函数
+            crate::render_core::RenderManager::register_core_functions();
 
             // 注册扩展
             let (total, success) = crate::extension::CoreAPI::instance().load_core_exts()?;

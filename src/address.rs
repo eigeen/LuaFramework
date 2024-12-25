@@ -46,7 +46,7 @@ impl AddressRepository {
             return Err(Error::AddressRecordNotFound(name.to_string()));
         };
 
-        let addr = MemoryUtils::scan_first(0x140000000, 0x5500000, &record.pattern)?;
+        let addr = MemoryUtils::auto_scan_first(&record.pattern)?;
         let addr = ((addr as isize) + record.offset) as usize;
         inner.data.insert(name.to_string(), addr);
 

@@ -63,7 +63,7 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
             format!("{}s", elapsed.as_secs())
         };
 
-        let err_msg = format!("Last error found {} ago\n{}", time_msg, err.error);
+        let err_msg = format!("Last error found {} ago.\n{}", time_msg, err.error);
         ui.text_colored([255.0, 0.0, 0.0, 1.0], err_msg); // red
         ui.separator();
     }

@@ -23,7 +23,7 @@ impl MemoryUtils {
             return Ok(real_ptr);
         }
 
-        Err(MemoryError::NotFound)
+        Err(MemoryError::NotFound(pattern.to_string()))
     }
 
     /// 扫描内存，查找匹配的所有地址
@@ -37,7 +37,7 @@ impl MemoryUtils {
             .collect::<Vec<_>>();
 
         if result.is_empty() {
-            Err(MemoryError::NotFound)
+            Err(MemoryError::NotFound(pattern.to_string()))
         } else {
             Ok(result)
         }
@@ -158,6 +158,15 @@ impl MemoryUtils {
         Ok(())
     }
 
+    /// 检查内存页是否可读
+    pub fn check_permission_read(address: usize) -> Result<(), MemoryError> {
+        let state = Self::get_page_state(address)?;
+        if !state.contains(MemoryState::READ) {
+            return Err(MemoryError::PagePermNoRead(address));
+        }
+        Ok(())
+    }
+
     /// 检查内存页是否可执行
     pub fn check_permission_execute(address: usize) -> Result<(), MemoryError> {
         let state = Self::get_page_state(address)?;
@@ -258,6 +267,18 @@ impl MemoryUtils {
             }
         }
         Ok(backup)
+    }
+
+    /// 通过特征码扫描获取静态变量的调用点，并通过相对地址计算绝对地址。
+    pub fn scan_relative_static(pattern: &str, offset: isize) -> Result<usize, MemoryError> {
+        let scan_result = MemoryUtils::auto_scan_first(pattern)?;
+        let scan_result = (scan_result as isize) + offset;
+
+        MemoryUtils::check_permission_read(scan_result as usize)?;
+        let rel_offset = unsafe { *(scan_result as *const i32) };
+        let abs_ptr = (scan_result + 4 + rel_offset as isize) as usize;
+
+        Ok(abs_ptr)
     }
 
     /// 指针是否在可能的保留区范围

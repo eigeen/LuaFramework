@@ -8,6 +8,7 @@ use log::{debug, error, warn};
 use luaf_include::KeyCode;
 use rand::RngCore;
 
+use crate::extension::CoreAPI;
 use crate::input::Input;
 use crate::luavm::LuaVMManager;
 
@@ -50,6 +51,12 @@ impl RenderManager {
             mouse_scale: Vec2::new(1.0, 1.0),
             fonts: HashMap::new(),
         }
+    }
+
+    pub fn register_core_functions() {
+        CoreAPI::instance()
+            .register_function("Render::core_imgui_initialize", imgui_core_initialize as _);
+        CoreAPI::instance().register_function("Render::core_imgui_render", imgui_core_render as _);
     }
 
     pub fn get_mut() -> &'static mut RenderManager {

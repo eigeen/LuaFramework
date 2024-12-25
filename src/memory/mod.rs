@@ -6,8 +6,8 @@ pub use memory_util::MemoryUtils;
 
 #[derive(Debug, thiserror::Error)]
 pub enum MemoryError {
-    #[error("pattern not found")]
-    NotFound,
+    #[error("pattern not found: {0}")]
+    NotFound(String),
     #[error("more than one pattern found, expected exactly one")]
     MultipleMatchesFound,
     #[error("Invalid size: {0}")]
