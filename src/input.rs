@@ -24,16 +24,16 @@ impl Input {
         let controller = if let Some(controller_ptr) = controller_ptr {
             Some(Controller::from_ptr(controller_ptr))
         } else {
-            log::error!("Failed to get sMhKeyboard singleton. Keyboard input will not work.");
+            log::error!(
+                "Failed to get sMhSteamController singleton. Controller input will not work."
+            );
             None
         };
 
         let keyboard = if let Some(keyboard_ptr) = keyboard_ptr {
             Some(Keyboard::from_ptr(keyboard_ptr))
         } else {
-            log::error!(
-                "Failed to get sMhSteamController singleton. Controller input will not work."
-            );
+            log::error!("Failed to get sMhKeyboard singleton. Keyboard input will not work.");
             None
         };
 
@@ -106,22 +106,18 @@ impl GameObject for Controller {
 
 impl Controller {
     pub fn is_down(&self, button: ControllerButton) -> bool {
-        // let pad_down: u32 = self.get_value_copy(0x198);
         *self.pad_down & (button as u32) != 0
     }
 
     pub fn is_pressed(&self, button: ControllerButton) -> bool {
-        // let pad_trg: u32 = self.get_value_copy(0x1A0);
         *self.pad_trg & (button as u32) != 0
     }
 
     pub fn is_released(&self, button: ControllerButton) -> bool {
-        // let pad_rel: u32 = self.get_value_copy(0x1A4);
         *self.pad_rel & (button as u32) != 0
     }
 
     pub fn is_changed(&self, button: ControllerButton) -> bool {
-        // let pad_chg: u32 = self.get_value_copy(0x1A8);
         *self.pad_chg & (button as u32) != 0
     }
 }
