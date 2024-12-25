@@ -36,6 +36,8 @@ pub enum Error {
     AddressRecordNotFound(String),
     #[error("Failed to get singleton '{0}'")]
     SingletonNotFound(String),
+    #[error("Memory patch already exists at 0x{0:x}")]
+    PatchAlreadyExists(usize),
 }
 
 #[derive(Debug, Clone)]

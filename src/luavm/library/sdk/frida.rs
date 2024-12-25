@@ -53,17 +53,8 @@ impl LuaModule for FridaModule {
         )?;
         interceptor_table.set(
             "detach",
-            lua.create_function(|lua, handle: InterceptorHandle| {
+            lua.create_function(|_lua, handle: InterceptorHandle| {
                 let ok = InterceptorDispatcher::instance().lock().remove_hook(handle);
-
-                if ok {
-                    // 移除句柄记录
-                    if let Ok(handle_table) = lua.globals().get::<LuaTable>("_interceptor_handles")
-                    {
-                        handle_table.set(handle, LuaNil)?;
-                    }
-                }
-
                 Ok(ok)
             })?,
         )?;
@@ -98,13 +89,14 @@ impl LuaModule for FridaModule {
 
 impl FridaModule {
     pub fn remove_all_hooks(lua: &Lua) -> Result<()> {
-        lua.load(
-            r#"
-for _, handle in pairs(_interceptor_handles) do
-    sdk.Interceptor.detach(handle)
-end"#,
-        )
-        .exec()?;
+        let handles = lua.globals().get::<LuaTable>("_interceptor_handles")?;
+
+        let mut dispatcher = InterceptorDispatcher::instance().lock();
+        for handle in handles.sequence_values() {
+            let handle: InterceptorHandle = handle?;
+            dispatcher.remove_hook(handle);
+        }
+
         Ok(())
     }
 }

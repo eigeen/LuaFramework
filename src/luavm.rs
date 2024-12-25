@@ -296,6 +296,12 @@ impl Drop for LuaVM {
         if let Err(e) = result {
             log::error!("Failed to remove LuaVM({}) frida hooks: {}", self.name(), e);
         }
+        // 移除patches
+        log::debug!("Removing LuaVM({}) patches", self.name());
+        let result = library::sdk::memory::MemoryModule::restore_all_patches(&self.lua);
+        if let Err(e) = result {
+            log::error!("Failed to restore LuaVM({}) patches: {}", self.name(), e);
+        }
 
         log::debug!("LuaVM({}) removed", self.name());
     }

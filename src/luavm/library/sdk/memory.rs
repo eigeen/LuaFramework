@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use mlua::prelude::*;
+use parking_lot::Mutex;
 
 use crate::{
     address::AddressRecord,
@@ -55,18 +58,62 @@ impl LuaModule for MemoryModule {
                 },
             )?,
         )?;
-        // // 修改内存，且会在移除时自动还原
-        // memory.set(
-        //     "patch",
-        //     lua.create_function(|lua, (ptr, bytes): (LuaPtr, Vec<u8>)| todo!())?,
-        // )?;
-        // // 使用 0x90 填充内存，且会在移除时自动还原
-        // memory.set(
-        //     "patch_nop",
-        //     lua.create_function(|lua, (ptr, len): (LuaPtr, usize)| todo!())?,
-        // )?;
+        // 修改内存
+        memory.set(
+            "patch",
+            lua.create_function(|lua, (ptr, bytes): (LuaPtr, Vec<u8>)| {
+                MemoryPatchManager::instance()
+                    .new_patch(ptr.to_usize(), &bytes)
+                    .map_err(|e| e.into_lua_err())?;
+
+                let patch_table = lua.globals().get::<LuaTable>("_patches")?;
+                patch_table.push(ptr)?;
+
+                Ok(ptr)
+            })?,
+        )?;
+        // 使用 0x90 填充内存
+        memory.set(
+            "patch_nop",
+            lua.create_function(|lua, (ptr, size): (LuaPtr, usize)| {
+                MemoryPatchManager::instance()
+                    .new_patch_nop(ptr.to_usize(), size)
+                    .map_err(|e| e.into_lua_err())?;
+
+                let patch_table = lua.globals().get::<LuaTable>("_patches")?;
+                patch_table.push(ptr)?;
+
+                Ok(ptr)
+            })?,
+        )?;
+        // 还原 patch 的内存
+        memory.set(
+            "restore_patch",
+            lua.create_function(|lua, ptr: LuaPtr| {
+                let patch_table = lua.globals().get::<LuaTable>("_patches")?;
+                let find = patch_table.sequence_values().find(|v: &LuaResult<LuaPtr>| {
+                    if let Ok(v) = v {
+                        if v == &ptr {
+                            return true;
+                        }
+                    }
+                    false
+                });
+                if find.is_none() {
+                    return Ok(false);
+                }
+
+                let ok = MemoryPatchManager::instance()
+                    .restore_patch(ptr.to_usize())
+                    .map_err(|e| e.into_lua_err())?;
+
+                Ok(ok)
+            })?,
+        )?;
 
         registry.set("Memory", memory)?;
+
+        lua.globals().set("_patches", lua.create_table()?)?;
 
         // AddressRepository
         let repo_table = lua.create_table()?;
@@ -140,6 +187,20 @@ impl LuaModule for MemoryModule {
     }
 }
 
+impl MemoryModule {
+    pub fn restore_all_patches(lua: &Lua) -> Result<()> {
+        let patcher = MemoryPatchManager::instance();
+
+        let patch_table = lua.globals().get::<LuaTable>("_patches")?;
+        for patch in patch_table.sequence_values() {
+            let patch: LuaPtr = patch?;
+            patcher.restore_patch(patch.to_usize())?;
+        }
+
+        Ok(())
+    }
+}
+
 fn pattern_scan_all(address: usize, size: usize, pattern: &str) -> Result<Vec<usize>> {
     Ok(MemoryUtils::scan_all(address, size, pattern)?)
 }
@@ -183,7 +244,7 @@ fn parse_record_args(lua: &Lua, args: mlua::Variadic<LuaValue>) -> Result<Addres
 
 #[derive(Default)]
 struct MemoryPatchManager {
-    patches: Vec<MemoryPatch>,
+    patches: Mutex<HashMap<usize, MemoryPatch>>,
 }
 
 impl MemoryPatchManager {
@@ -197,7 +258,68 @@ impl MemoryPatchManager {
         }
     }
 
-    // pub fn new_patch(&mut self, address: usize, data: &[u8]) -> Result<()> {}
+    pub fn new_patch(&self, address: usize, data: &[u8]) -> Result<()> {
+        if self.is_patch_exists(address, data.len()) {
+            return Err(Error::PatchAlreadyExists(address));
+        }
+
+        let backup = MemoryUtils::patch(address, data)?;
+        self.patches.lock().insert(
+            address,
+            MemoryPatch {
+                address,
+                size: data.len(),
+                backup,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn new_patch_nop(&self, address: usize, size: usize) -> Result<()> {
+        if self.is_patch_exists(address, size) {
+            return Err(Error::PatchAlreadyExists(address));
+        }
+
+        let backup = MemoryUtils::patch_repeat(address, 0x90, size)?;
+        self.patches.lock().insert(
+            address,
+            MemoryPatch {
+                address,
+                size,
+                backup,
+            },
+        );
+
+        Ok(())
+    }
+
+    pub fn restore_patch(&self, address: usize) -> Result<bool> {
+        if let Some(patch) = self.patches.lock().remove(&address) {
+            MemoryUtils::patch(patch.address, &patch.backup)?;
+            return Ok(true);
+        }
+        Ok(false)
+    }
+
+    fn is_patch_exists(&self, address: usize, size: usize) -> bool {
+        for patch in self.patches.lock().values() {
+            let range1 = patch.address..(patch.address + patch.size);
+            let range2 = address..(address + size);
+            if self.range_overlaps(range1, range2) {
+                return true;
+            }
+        }
+        false
+    }
+
+    fn range_overlaps(
+        &self,
+        range1: std::ops::Range<usize>,
+        range2: std::ops::Range<usize>,
+    ) -> bool {
+        range1.start < range2.end && range2.start < range1.end
+    }
 }
 
 struct MemoryPatch {
