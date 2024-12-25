@@ -33,9 +33,7 @@ impl LuaModule for FridaModule {
         let interceptor_table = lua.create_table()?;
         interceptor_table.set(
             "attach",
-            lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
-                // 尝试以 LuaPtr 类型解析 hook_ptr
-                let ptr = LuaPtr::from_lua(hook_ptr)?;
+            lua.create_function(|lua, (ptr, params): (LuaPtr, LuaTable)| {
                 // 安全检查
                 MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
 
@@ -71,9 +69,7 @@ impl LuaModule for FridaModule {
         )?;
         interceptor_table.set(
             "attach_instruction",
-            lua.create_function(|lua, (hook_ptr, params): (LuaValue, LuaTable)| {
-                // 尝试以 LuaPtr 类型解析 hook_ptr
-                let ptr = LuaPtr::from_lua(hook_ptr)?;
+            lua.create_function(|lua, (ptr, params): (LuaPtr, LuaTable)| {
                 // 安全检查
                 MemoryUtils::check_page_commit(ptr.to_usize()).map_err(|e| e.into_lua_err())?;
 
@@ -462,9 +458,9 @@ impl<'a> LuaUserData for CpuContextArgs<'a> {
         });
         methods.add_meta_method_mut(
             LuaMetaMethod::NewIndex,
-            |_lua, this, (key, value): (LuaValue, LuaValue)| {
+            |lua, this, (key, value): (LuaValue, LuaValue)| {
                 let index_key: IndexKey = key.into();
-                let ptr = LuaPtr::from_lua(value)?;
+                let ptr = LuaPtr::from_lua(value, lua)?;
                 let ptr_val = ptr.to_u64();
 
                 match index_key {

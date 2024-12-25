@@ -1,7 +1,12 @@
 use std::{io::Cursor, slice};
 
-use super::{pattern_scan, windows_util, MemoryError};
+use super::{
+    pattern_scan,
+    windows_util::{self, VirtualProtectGuard},
+    MemoryError,
+};
 
+use windows::Win32::System::Memory::PAGE_EXECUTE_READWRITE;
 pub use windows_util::MemoryState;
 
 pub struct MemoryUtils;
@@ -76,14 +81,13 @@ impl MemoryUtils {
         if size == 0 {
             return Err(MemoryError::InvalidSize(size));
         }
-        if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PagePermNoRead(address));
-        }
         if safe {
             let permission = Self::get_page_state(address)?;
             if !permission.contains(MemoryState::READ) {
                 return Err(MemoryError::PagePermNoRead(address));
             }
+        } else if Self::is_in_reserved_range(address) {
+            return Err(MemoryError::PagePermNoRead(address));
         }
 
         let memory_slice = unsafe { slice::from_raw_parts(address as *const u8, size) };
@@ -95,14 +99,13 @@ impl MemoryUtils {
         if size == 0 || size > 8 {
             return Err(MemoryError::InvalidSize(size as usize));
         }
-        if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PagePermNoRead(address));
-        }
         if safe {
             let permission = Self::get_page_state(address)?;
             if !permission.contains(MemoryState::READ) {
                 return Err(MemoryError::PagePermNoRead(address));
             }
+        } else if Self::is_in_reserved_range(address) {
+            return Err(MemoryError::PagePermNoRead(address));
         }
 
         let memory_slice = unsafe { slice::from_raw_parts(address as *const u8, size as usize) };
@@ -123,14 +126,13 @@ impl MemoryUtils {
         if buf.is_empty() {
             return Ok(());
         }
-        if Self::is_in_reserved_range(address) {
-            return Err(MemoryError::PagePermNoWrite(address));
-        }
         if safe {
             let permission = Self::get_page_state(address)?;
             if !permission.contains(MemoryState::WRITE) {
                 return Err(MemoryError::PagePermNoWrite(address));
             }
+        } else if Self::is_in_reserved_range(address) {
+            return Err(MemoryError::PagePermNoWrite(address));
         }
 
         let dst_ptr = address as *mut u8;
@@ -216,6 +218,46 @@ impl MemoryUtils {
             // 返回最后一级指针
             Some(addr)
         }
+    }
+
+    pub fn patch(address: usize, data: &[u8]) -> Result<Vec<u8>, MemoryError> {
+        // 检查页面是否已提交
+        MemoryUtils::check_page_commit(address)?;
+
+        let mut backup = vec![0u8; data.len()];
+        {
+            let _guard =
+                VirtualProtectGuard::new(address as *const _, data.len(), PAGE_EXECUTE_READWRITE)?;
+            unsafe {
+                std::ptr::copy_nonoverlapping(
+                    address as *const u8,
+                    backup.as_mut_ptr(),
+                    data.len(),
+                );
+                std::ptr::copy_nonoverlapping(data.as_ptr(), address as *mut u8, data.len());
+            }
+        }
+        Ok(backup)
+    }
+
+    pub fn patch_repeat(address: usize, byte: u8, count: usize) -> Result<Vec<u8>, MemoryError> {
+        // 检查页面是否已提交
+        MemoryUtils::check_page_commit(address)?;
+
+        let mut backup = vec![0u8; count];
+        {
+            let _guard =
+                VirtualProtectGuard::new(address as *const _, count, PAGE_EXECUTE_READWRITE)?;
+            unsafe {
+                std::ptr::copy_nonoverlapping(address as *const u8, backup.as_mut_ptr(), count);
+
+                let ptr = address as *mut u8;
+                for i in 0..count {
+                    *ptr.add(i) = byte;
+                }
+            }
+        }
+        Ok(backup)
     }
 
     /// 指针是否在可能的保留区范围

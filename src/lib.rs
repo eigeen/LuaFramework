@@ -13,6 +13,7 @@ mod error;
 mod extension;
 mod game;
 mod input;
+mod logger;
 mod luavm;
 mod memory;
 mod render_core;
@@ -21,20 +22,6 @@ mod utility;
 #[cfg(test)]
 mod tests;
 
-mod logger {
-    use std::sync::LazyLock;
-
-    use log::LevelFilter;
-    use mhw_toolkit::logger::MHWLogger;
-
-    static LOGGER: LazyLock<MHWLogger> = LazyLock::new(|| MHWLogger::new(env!("CARGO_PKG_NAME")));
-
-    pub fn init_log() {
-        log::set_logger(&*LOGGER).unwrap();
-        log::set_max_level(LevelFilter::Trace);
-    }
-}
-
 fn panic_hook(info: &std::panic::PanicHookInfo) {
     let msg = format!("LuaFramework panic: {}", info);
     log::error!("{}", msg);
@@ -42,8 +29,8 @@ fn panic_hook(info: &std::panic::PanicHookInfo) {
 }
 
 fn main_entry() -> anyhow::Result<()> {
-    logger::init_log();
     std::panic::set_hook(Box::new(panic_hook));
+    logger::init_logger().unwrap();
 
     // 初始化hook等资源
     game::command::init_game_command()?;

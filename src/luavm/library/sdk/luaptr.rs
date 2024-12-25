@@ -18,10 +18,7 @@ pub struct LuaPtr {
 
 impl LuaModule for LuaPtr {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
-        registry.set(
-            "LuaPtr",
-            lua.create_function(|_, value| LuaPtr::from_lua(value))?,
-        )?;
+        registry.set("LuaPtr", lua.create_function(|_, value: LuaPtr| Ok(value))?)?;
         Ok(())
     }
 }
@@ -36,13 +33,11 @@ impl LuaUserData for LuaPtr {
         methods.add_meta_method(LuaMetaMethod::ToString, |_, this, ()| {
             Ok(format!("0x{:016X}", this.to_u64()))
         });
-        methods.add_meta_method(LuaMetaMethod::Add, |_, this, other: LuaValue| {
-            let other_ptr = LuaPtr::from_lua(other)?;
-            Ok(Self::new(this.to_u64().wrapping_add(other_ptr.to_u64())))
+        methods.add_meta_method(LuaMetaMethod::Add, |_, this, other: LuaPtr| {
+            Ok(Self::new(this.to_u64().wrapping_add(other.to_u64())))
         });
-        methods.add_meta_method(LuaMetaMethod::Sub, |_, this, other: LuaValue| {
-            let other_ptr = LuaPtr::from_lua(other)?;
-            Ok(Self::new(this.to_u64().wrapping_sub(other_ptr.to_u64())))
+        methods.add_meta_method(LuaMetaMethod::Sub, |_, this, other: LuaPtr| {
+            Ok(Self::new(this.to_u64().wrapping_sub(other.to_u64())))
         });
 
         // 转换为 Lua 原生 Integer 类型
@@ -228,7 +223,32 @@ impl LuaPtr {
         self.inner as usize
     }
 
-    pub fn from_lua(value: LuaValue) -> LuaResult<Self> {
+    /// 解析偏移参数
+    fn parse_offset_args(args: mlua::Variadic<LuaValue>) -> LuaResult<Vec<isize>> {
+        let mut offsets = vec![];
+
+        let first_arg = args.first().unwrap();
+        if let LuaValue::Table(table) = first_arg {
+            // 如果第一个值是table
+            for arg in table.sequence_values() {
+                let arg_v: isize = arg?;
+                offsets.push(arg_v);
+            }
+        } else {
+            for arg in args {
+                let arg_v = arg
+                    .as_integer()
+                    .ok_or(Error::InvalidValue("integer", format!("{:?}", arg)).into_lua_err())?;
+                offsets.push(arg_v as isize);
+            }
+        }
+
+        Ok(offsets)
+    }
+}
+
+impl FromLua for LuaPtr {
+    fn from_lua(value: LuaValue, _lua: &Lua) -> LuaResult<Self> {
         match value {
             LuaNil => Ok(Self::new(0)),
             LuaValue::Integer(v) => {
@@ -295,29 +315,6 @@ impl LuaPtr {
                     .into_lua_err(),
             ),
         }
-    }
-
-    /// 解析偏移参数
-    fn parse_offset_args(args: mlua::Variadic<LuaValue>) -> LuaResult<Vec<isize>> {
-        let mut offsets = vec![];
-
-        let first_arg = args.first().unwrap();
-        if let LuaValue::Table(table) = first_arg {
-            // 如果第一个值是table
-            for arg in table.sequence_values() {
-                let arg_v: isize = arg?;
-                offsets.push(arg_v);
-            }
-        } else {
-            for arg in args {
-                let arg_v = arg
-                    .as_integer()
-                    .ok_or(Error::InvalidValue("integer", format!("{:?}", arg)).into_lua_err())?;
-                offsets.push(arg_v as isize);
-            }
-        }
-
-        Ok(offsets)
     }
 }
 

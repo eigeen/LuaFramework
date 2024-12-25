@@ -18,6 +18,8 @@ pub enum MemoryError {
     PagePermNoWrite(usize),
     #[error("Page not committed at 0x{0:x}. You're trying to access memory that hasn't been allocated or initialized.")]
     PageNotCommit(usize),
+    #[error("VirtualProtect error: {0}")]
+    VirtualProtect(windows::core::Error),
 
     #[error("pattern scan error: {0}")]
     PatternScan(#[from] pattern_scan::Error),

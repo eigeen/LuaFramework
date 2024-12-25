@@ -33,8 +33,7 @@ impl LuaModule for StringModule {
         )?;
         string_table.set(
             "from_ptr",
-            lua.create_function(|_lua, value: LuaValue| {
-                let ptr = LuaPtr::from_lua(value)?;
+            lua.create_function(|_lua, ptr: LuaPtr| {
                 let ptr_val = ptr.to_usize();
                 // 尝试解析C字符串
                 let cstr = unsafe { CStr::from_ptr(ptr_val as *const i8) };

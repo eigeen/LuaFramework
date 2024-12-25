@@ -10,8 +10,6 @@ pub enum Error {
     IoWithContext(std::io::Error, String),
     #[error("Lua Error: {0}")]
     Lua(#[from] mlua::Error),
-    #[error("Hook Error: {0}")]
-    Hook(#[from] mhw_toolkit::game::extra_hooks::HookError),
     #[error("Windows Error: {0}")]
     Windows(#[from] windows::core::Error),
     #[error("Inline hook error: {0}")]

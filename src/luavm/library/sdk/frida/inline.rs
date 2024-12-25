@@ -148,13 +148,13 @@ impl<'a> LuaUserData for InlineEnterArgs<'a> {
         });
         methods.add_meta_method(
             LuaMetaMethod::NewIndex,
-            |_lua, this, (key, value): (LuaValue, LuaValue)| {
+            |lua, this, (key, value): (LuaValue, LuaValue)| {
                 let index_key: IndexKey = key.into();
 
                 match index_key {
                     IndexKey::Int(key) => {
                         // 设置参数值
-                        let ptr = LuaPtr::from_lua(value)?;
+                        let ptr = LuaPtr::from_lua(value, lua)?;
                         this.context.set_arg(key, ptr.to_usize());
                         Ok(())
                     }
@@ -236,7 +236,7 @@ impl<'a> LuaUserData for InlineLeaveArgs<'a> {
         });
         methods.add_meta_method(
             LuaMetaMethod::NewIndex,
-            |_lua, this, (key, value): (LuaValue, LuaValue)| {
+            |lua, this, (key, value): (LuaValue, LuaValue)| {
                 let index_key: IndexKey = key.into();
 
                 match index_key {
@@ -250,7 +250,7 @@ impl<'a> LuaUserData for InlineLeaveArgs<'a> {
                         // 内部保留关键字key
                         match key.as_ref() {
                             "retval" => {
-                                let ptr = LuaPtr::from_lua(value)?;
+                                let ptr = LuaPtr::from_lua(value, lua)?;
                                 this.context.set_return_value(ptr.to_usize());
                             }
                             _ => {

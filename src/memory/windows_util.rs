@@ -1,8 +1,13 @@
+use std::ffi::c_void;
+
 use bitflags::bitflags;
 use windows::Win32::{
     Foundation::HMODULE,
     System::{
-        Memory::{VirtualQueryEx, MEMORY_BASIC_INFORMATION, MEM_COMMIT},
+        Memory::{
+            VirtualProtect, VirtualQueryEx, MEMORY_BASIC_INFORMATION, MEM_COMMIT,
+            PAGE_PROTECTION_FLAGS,
+        },
         ProcessStatus::{EnumProcessModules, GetModuleInformation, MODULEINFO},
         Threading::GetCurrentProcess,
     },
@@ -12,6 +17,8 @@ use windows::Win32::System::Memory::{
     PAGE_EXECUTE, PAGE_EXECUTE_READ, PAGE_EXECUTE_READWRITE, PAGE_EXECUTE_WRITECOPY, PAGE_NOACCESS,
     PAGE_READONLY, PAGE_READWRITE, PAGE_WRITECOPY,
 };
+
+use super::MemoryError;
 
 bitflags! {
     pub struct MemoryState: u32 {
@@ -99,4 +106,62 @@ pub unsafe fn get_memory_state(address: usize) -> Result<MemoryState, windows::c
     }
 
     Ok(permissions)
+}
+
+/// VirtualProtect RAII object
+pub struct VirtualProtectGuard {
+    old_protect: PAGE_PROTECTION_FLAGS,
+    new_protect: PAGE_PROTECTION_FLAGS,
+    ptr: *const c_void,
+    dwsize: usize,
+}
+
+impl Drop for VirtualProtectGuard {
+    fn drop(&mut self) {
+        if let Err(e) = self.reset_protect() {
+            log::error!("Failed to reset memory protection: {}", e);
+        }
+    }
+}
+
+impl VirtualProtectGuard {
+    pub fn new(
+        ptr: *const c_void,
+        dwsize: usize,
+        new_protect: PAGE_PROTECTION_FLAGS,
+    ) -> Result<Self, MemoryError> {
+        let mut this = Self {
+            old_protect: PAGE_PROTECTION_FLAGS::default(),
+            new_protect,
+            ptr,
+            dwsize,
+        };
+        this.set_protect()?;
+
+        Ok(this)
+    }
+
+    fn set_protect(&mut self) -> Result<(), MemoryError> {
+        unsafe {
+            VirtualProtect(
+                self.ptr as *const _,
+                self.dwsize,
+                self.new_protect,
+                &mut self.old_protect,
+            )
+            .map_err(MemoryError::VirtualProtect)
+        }
+    }
+
+    fn reset_protect(&self) -> Result<(), MemoryError> {
+        unsafe {
+            VirtualProtect(
+                self.ptr as *const _,
+                self.dwsize,
+                self.old_protect,
+                &mut PAGE_PROTECTION_FLAGS::default(),
+            )
+            .map_err(MemoryError::VirtualProtect)
+        }
+    }
 }

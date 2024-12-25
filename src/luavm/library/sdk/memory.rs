@@ -17,9 +17,8 @@ impl LuaModule for MemoryModule {
         memory.set(
             "scan",
             lua.create_function(
-                |_, (address, size, pattern, offset): (LuaValue, usize, String, Option<i32>)| {
-                    let address_ptr = LuaPtr::from_lua(address)?;
-                    let address_usize = address_ptr.to_usize();
+                |_, (ptr, size, pattern, offset): (LuaPtr, usize, String, Option<i32>)| {
+                    let address_usize = ptr.to_usize();
 
                     let mut result =
                         pattern_scan_first(address_usize, size, &pattern).into_lua_err()?;
@@ -36,9 +35,8 @@ impl LuaModule for MemoryModule {
         memory.set(
             "scan_all",
             lua.create_function(
-                |_, (address, size, pattern, offset): (LuaValue, usize, String, Option<i32>)| {
-                    let address_ptr = LuaPtr::from_lua(address)?;
-                    let address_usize = address_ptr.to_usize();
+                |_, (ptr, size, pattern, offset): (LuaPtr, usize, String, Option<i32>)| {
+                    let address_usize = ptr.to_usize();
 
                     let mut results =
                         pattern_scan_all(address_usize, size, &pattern).into_lua_err()?;
@@ -57,6 +55,16 @@ impl LuaModule for MemoryModule {
                 },
             )?,
         )?;
+        // // 修改内存，且会在移除时自动还原
+        // memory.set(
+        //     "patch",
+        //     lua.create_function(|lua, (ptr, bytes): (LuaPtr, Vec<u8>)| todo!())?,
+        // )?;
+        // // 使用 0x90 填充内存，且会在移除时自动还原
+        // memory.set(
+        //     "patch_nop",
+        //     lua.create_function(|lua, (ptr, len): (LuaPtr, usize)| todo!())?,
+        // )?;
 
         registry.set("Memory", memory)?;
 
@@ -171,4 +179,29 @@ fn parse_record_args(lua: &Lua, args: mlua::Variadic<LuaValue>) -> Result<Addres
             format!("{:?}", args),
         ))
     }
+}
+
+#[derive(Default)]
+struct MemoryPatchManager {
+    patches: Vec<MemoryPatch>,
+}
+
+impl MemoryPatchManager {
+    pub fn instance() -> &'static mut Self {
+        static mut MEMORY_PATCH_MANAGER: Option<MemoryPatchManager> = None;
+        unsafe {
+            if MEMORY_PATCH_MANAGER.is_none() {
+                MEMORY_PATCH_MANAGER = Some(MemoryPatchManager::default());
+            }
+            MEMORY_PATCH_MANAGER.as_mut().unwrap()
+        }
+    }
+
+    // pub fn new_patch(&mut self, address: usize, data: &[u8]) -> Result<()> {}
+}
+
+struct MemoryPatch {
+    address: usize,
+    size: usize,
+    backup: Vec<u8>,
 }

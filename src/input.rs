@@ -24,7 +24,7 @@ impl Input {
         let controller = if let Some(controller_ptr) = controller_ptr {
             Some(Controller::from_ptr(controller_ptr))
         } else {
-            log::error!("Failed to get sMhKeyboard singleton. Controller input will not work.");
+            log::error!("Failed to get sMhKeyboard singleton. Keyboard input will not work.");
             None
         };
 

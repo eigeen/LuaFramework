@@ -11,7 +11,7 @@ use mlua::prelude::*;
 use crate::{
     error::Error,
     extension::CoreAPI,
-    luavm::library::{runtime::RuntimeModule, utility::UtilityModule, LuaModule},
+    luavm::library::{utility::UtilityModule, LuaModule},
     memory::MemoryUtils,
 };
 
@@ -52,7 +52,7 @@ fn acquire_ffi_functions() {
 }
 
 fn lua_call_c_function(
-    lua: &Lua,
+    _lua: &Lua,
     (fun_arg, args, ret_type_name, is_safe): (
         LuaValue,
         Vec<Argument>,
