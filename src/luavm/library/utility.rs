@@ -1,3 +1,5 @@
+use std::time::{Duration, Instant};
+
 use mlua::prelude::*;
 
 use crate::error::{Error, Result};
@@ -40,6 +42,12 @@ impl LuaModule for UtilityModule {
                 Ok(ok)
             })?,
         )?;
+
+        // Instant
+        let instant_table = lua.create_table()?;
+        instant_table.set("now", lua.create_function(|_, ()| Ok(LuaInstant::now()))?)?;
+
+        utils_table.set("Instant", instant_table)?;
 
         registry.set("utils", utils_table)?;
         Ok(())
@@ -102,5 +110,35 @@ impl UtilityModule {
         let low: u32 = tbl.get("low")?;
         let merged = Self::merge_to_u64(high, low);
         Ok(merged)
+    }
+}
+
+pub struct LuaInstant(pub Instant);
+
+impl LuaUserData for LuaInstant {
+    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method("elapsed", |_, this, ()| Ok(this.elapsed()));
+    }
+}
+
+impl LuaInstant {
+    pub fn now() -> Self {
+        Self(Instant::now())
+    }
+
+    pub fn elapsed(&self) -> LuaDuration {
+        LuaDuration(self.0.elapsed())
+    }
+}
+
+pub struct LuaDuration(pub Duration);
+
+impl LuaUserData for LuaDuration {
+    fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
+        methods.add_method("as_secs", |_, this, ()| Ok(this.0.as_secs()));
+        methods.add_method("as_secs_f64", |_, this, ()| Ok(this.0.as_secs_f64()));
+        methods.add_method("as_millis", |_, this, ()| Ok(this.0.as_millis()));
+        methods.add_method("as_micros", |_, this, ()| Ok(this.0.as_micros()));
+        methods.add_method("as_nanos", |_, this, ()| Ok(this.0.as_nanos()));
     }
 }

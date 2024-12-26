@@ -3,10 +3,11 @@ local Structure = require("_framework.structure")
 local sQuest = sdk.get_singleton("sQuest")
 local sMhEffect = sdk.get_singleton("sMhEffect")
 
----@class Quest
 local Quest = {}
 
-function Quest.default()
+---@return Quest
+function Quest.new()
+    ---@class Quest
     local obj = {
         _ptr = sQuest,
         current_id = Structure.field_def(0x4C, "i32"),
