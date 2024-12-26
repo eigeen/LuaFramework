@@ -2,6 +2,30 @@ import os
 import shutil
 import zipfile
 import re
+import sys
+import subprocess
+
+g_dev_mode = False
+
+
+def get_commit_id_short():
+    try:
+        commit_hash = (
+            subprocess.check_output(
+                ["git", "rev-parse", "--short", "HEAD"], stderr=subprocess.STDOUT
+            )
+            .strip()
+            .decode("utf-8")
+        )
+        return commit_hash
+    except subprocess.CalledProcessError as e:
+        print(f"Error: {e.output.decode('utf-8')}")
+        return None
+
+
+if len(sys.argv) >= 2:
+    if sys.argv[1] == "dev":
+        g_dev_mode = True
 
 # create dist folder
 if os.path.exists("dist"):
@@ -68,10 +92,15 @@ with open("Cargo.toml", "r", encoding="utf-8") as f:
             if len(results) > 0:
                 version = results[0]
 
+zip_name = None
+if g_dev_mode:
+    commit_id_short = get_commit_id_short()
+    zip_name = f"lua-framework_v{version}-dev-{commit_id_short}.zip"
+else:
+    zip_name = f"lua-framework_v{version}.zip"
+
 # create zip file
-archive = zipfile.ZipFile(
-    f"dist/lua-framework_v{version}.zip", "w", zipfile.ZIP_DEFLATED
-)
+archive = zipfile.ZipFile(f"dist/{zip_name}", "w", zipfile.ZIP_DEFLATED)
 
 for src_dst in file_src_dst:
     if src_dst["type"] == "file":
