@@ -53,6 +53,10 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
                 .spawn();
         }
     }
+    ui.same_line();
+    if ui.button("Spawn Console") {
+        crate::logger::spawn_logger_console();
+    }
 
     // 显示最后错误信息
     if let Some(err) = crate::error::get_last_error() {

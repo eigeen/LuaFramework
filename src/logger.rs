@@ -1,3 +1,5 @@
+use std::sync::atomic::{self, AtomicBool};
+
 use colored::Colorize;
 use log::{Metadata, Record};
 use parking_lot::Mutex;
@@ -12,8 +14,9 @@ use windows::Win32::{
 
 use crate::error::Error;
 
+static LOGGER_INITIALIZED: AtomicBool = AtomicBool::new(false);
+
 struct Logger {
-    prefix: String,
     stdout: Mutex<HANDLE>,
 }
 
@@ -21,9 +24,8 @@ unsafe impl Send for Logger {}
 unsafe impl Sync for Logger {}
 
 impl Logger {
-    pub fn new(prefix: &str, handle: HANDLE) -> Self {
+    pub fn new(handle: HANDLE) -> Self {
         Self {
-            prefix: prefix.to_string(),
             stdout: Mutex::new(handle),
         }
     }
@@ -66,18 +68,19 @@ impl log::Log for Logger {
 }
 
 pub fn init_logger() -> Result<(), Error> {
-    unsafe {
-        // alloc console
-        if AllocConsole().is_err() {
-            // try to get current console window
-            let hwnd = GetConsoleWindow();
-            if hwnd.0.is_null() {
-                panic!("Failed to allocate console window");
-            }
-        };
+    if LOGGER_INITIALIZED.load(atomic::Ordering::SeqCst) {
+        return Ok(());
     }
 
-    let stdout_handle: HANDLE = unsafe { GetStdHandle(STD_OUTPUT_HANDLE)? };
+    let stdout_handle_result = unsafe { GetStdHandle(STD_OUTPUT_HANDLE) };
+    let stdout_handle = match stdout_handle_result {
+        Ok(h) => h,
+        Err(_) => {
+            // 忽略
+            return Ok(());
+        }
+    };
+
     unsafe {
         // enable virtual terminal processing
         SetConsoleMode(
@@ -88,10 +91,26 @@ pub fn init_logger() -> Result<(), Error> {
         )?;
     };
 
-    let logger = Logger::new(env!("CARGO_PKG_NAME"), stdout_handle);
+    let logger = Logger::new(stdout_handle);
 
     log::set_boxed_logger(Box::new(logger)).unwrap();
     log::set_max_level(log::LevelFilter::Debug);
 
+    LOGGER_INITIALIZED.store(true, atomic::Ordering::SeqCst);
+
     Ok(())
+}
+
+pub fn spawn_logger_console() {
+    unsafe {
+        if AllocConsole().is_err() {
+            // try to get current console window
+            let hwnd = GetConsoleWindow();
+            if hwnd.0.is_null() {
+                panic!("Failed to allocate console window");
+            }
+        };
+    }
+
+    init_logger().unwrap();
 }
