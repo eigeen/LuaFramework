@@ -5,6 +5,8 @@
 ---@field Memory Memory
 ---@field AddressRepository AddressRepository
 ---@field Interceptor Interceptor
+---@field call_native_function fun()
+local _ = _
 
 local sdk = {
     ---@class _TStringConstructor
@@ -15,7 +17,7 @@ local sdk = {
     String = {},
     ---@class _TLuaPtrConstructor
     ---@field __call fun(address:integer): LuaPtr
-    LuaPtr = {},
+    LuaPtr = {}
 }
 
 -- typedef
@@ -78,6 +80,9 @@ local Input = {
 ---@class Memory
 ---@field scan fun(address:integer, size:integer, pattern:string, offset:integer|nil): LuaPtr
 ---@field scan_all fun(address:integer, size:integer, pattern:string, offset:integer|nil): table<integer, LuaPtr>
+---@field patch fun(ptr:AsLuaPtr, bytes:Bytes): LuaPtr
+---@field patch_nop fun(ptr:AsLuaPtr, size:integer): LuaPtr
+---@field restore_patch fun(ptr:AsLuaPtr): boolean
 
 ---@class AddressRepository
 ---@field get fun(name:string): LuaPtr
