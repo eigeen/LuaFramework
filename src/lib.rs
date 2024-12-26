@@ -24,7 +24,7 @@ mod tests;
 
 fn panic_hook(info: &std::panic::PanicHookInfo) {
     let msg = format!("LuaFramework panic: {}", info);
-    log::error!("{}", msg);
+    log::error!("{:#}", msg);
     utility::show_error_msgbox(&msg, "LuaFramework Panic");
 }
 

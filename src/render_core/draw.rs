@@ -75,7 +75,7 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
     ui.text("Scripts");
 
     let mut changed = false;
-    let _ = LuaVMManager::instance().run_with_lock(|inner| {
+    let _ = LuaVMManager::instance().run_with_lock_mut(|inner| {
         // Name -> Checked
         let mut all_vms = HashMap::new();
 

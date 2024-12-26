@@ -1,4 +1,5 @@
 use std::{
+    cell::RefCell,
     collections::{HashMap, HashSet},
     path::Path,
     sync::{Arc, LazyLock, Weak},
@@ -7,7 +8,7 @@ use std::{
 use library::LuaModule;
 use mlua::prelude::*;
 
-use parking_lot::Mutex;
+use parking_lot::{Mutex, ReentrantMutex};
 use rand::RngCore;
 
 use crate::error::{Error, Result};
@@ -48,7 +49,7 @@ pub struct LastLoadInfo {
 
 #[derive(Default)]
 pub struct LuaVMManager {
-    inner: Mutex<LuaVMManagerInner>,
+    inner: ReentrantMutex<RefCell<LuaVMManagerInner>>,
     last_load_info: Mutex<Option<LastLoadInfo>>,
 }
 
@@ -67,14 +68,17 @@ impl LuaVMManager {
     /// name: 虚拟名称，用于标识虚拟机。会自动在前面加上 `virtual:`
     #[allow(dead_code)]
     pub fn create_virtual_vm(&self, name: &str) -> SharedLuaVM {
-        let mut inner = self.inner.lock();
-
         let virtual_name = format!("virtual:{}", name);
         let luavm = LuaVM::new_with_libs(&virtual_name).unwrap();
         let id = luavm.id();
 
         let luavm_shared = Arc::new(luavm);
-        inner.add_vm(id, &virtual_name, luavm_shared.clone());
+        {
+            let inner = self.inner.lock();
+            inner
+                .borrow_mut()
+                .add_vm(id, &virtual_name, luavm_shared.clone());
+        }
 
         luavm_shared
     }
@@ -98,9 +102,13 @@ impl LuaVMManager {
         // 先向管理器添加虚拟机，以便初始化时有模块需要获取引用
         let id = luavm.id();
         let luavm_shared = Arc::new(luavm);
-        self.inner
-            .lock()
-            .add_vm(id, &file_name, luavm_shared.clone());
+
+        {
+            let inner = self.inner.lock();
+            inner
+                .borrow_mut()
+                .add_vm(id, &file_name, luavm_shared.clone());
+        }
 
         {
             // 加载自定义库
@@ -125,9 +133,10 @@ impl LuaVMManager {
     pub fn get_vm_by_lua(&self, lua: &Lua) -> Option<SharedLuaVM> {
         let luaid = Self::get_id_from_lua(lua).ok()?;
         let inner = self.inner.lock();
-        inner.vms.get(&luaid).cloned()
+        let inner_b = inner.borrow();
+        inner_b.vms.get(&luaid).cloned()
     }
-
+    ///
     /// 扫描路径并加载所有虚拟机
     pub fn auto_load_vms<P>(&self, dir_path: P) -> Result<Vec<LuaVMId>>
     where
@@ -158,9 +167,12 @@ impl LuaVMManager {
 
             // 检查是否被禁用
             let file_name = path.file_name().unwrap_or_default().to_string_lossy();
-            if !self.inner.lock().is_vm_name_enabled(file_name.as_ref()) {
-                log::debug!("Script file '{}' is disabled. Skipping.", file_name);
-                continue;
+            {
+                let inner = self.inner.lock();
+                if !inner.borrow().is_vm_name_enabled(file_name.as_ref()) {
+                    log::debug!("Script file '{}' is disabled. Skipping.", file_name);
+                    continue;
+                }
             }
 
             match self.create_vm_with_file(&path) {
@@ -183,7 +195,10 @@ impl LuaVMManager {
 
     /// 重新加载所有虚拟机
     pub fn reload_physical_vms(&self) -> Result<()> {
-        self.inner.lock().remove_pyhsical_vms();
+        {
+            let inner = self.inner.lock();
+            inner.borrow_mut().remove_pyhsical_vms();
+        }
         // 移除共享状态
         library::sdk::shared_state::SharedState::instance().clear_states();
         // 加载
@@ -199,7 +214,8 @@ impl LuaVMManager {
     /// 调用已设置的回调函数，无参数。
     pub fn invoke_fn(&self, fn_name: &str) {
         let inner = self.inner.lock();
-        for (_, luavm) in inner.iter_vms() {
+        let inner_b = inner.borrow();
+        for (_, luavm) in inner_b.iter_vms() {
             let globals = luavm.lua().globals();
             let Ok(fun) = globals.get::<LuaFunction>(format!("_{fn_name}")) else {
                 continue;
@@ -214,10 +230,20 @@ impl LuaVMManager {
 
     pub fn run_with_lock<F>(&self, f: F) -> LuaResult<()>
     where
+        F: FnOnce(&LuaVMManagerInner) -> LuaResult<()>,
+    {
+        let inner = self.inner.lock();
+        let inner_b = inner.borrow();
+        f(&inner_b)
+    }
+
+    pub fn run_with_lock_mut<F>(&self, f: F) -> LuaResult<()>
+    where
         F: FnOnce(&mut LuaVMManagerInner) -> LuaResult<()>,
     {
-        let mut inner = self.inner.lock();
-        f(&mut inner)
+        let inner = self.inner.lock();
+        let mut inner_b = inner.borrow_mut();
+        f(&mut inner_b)
     }
 
     /// 从Lua中获取虚拟机ID
