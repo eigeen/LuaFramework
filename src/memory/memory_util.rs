@@ -286,33 +286,3 @@ impl MemoryUtils {
         (0..=0x10000).contains(&address) || address > i64::MAX as usize
     }
 }
-
-pub fn space_hex_to_bytes(text_hex: &str) -> Result<Vec<u8>, String> {
-    text_hex
-        .split_whitespace()
-        .map(|byte_str| {
-            if (["**", "*", "??", "?"]).contains(&byte_str) {
-                Ok(0xFF_u8)
-            } else {
-                u8::from_str_radix(byte_str, 16)
-            }
-        })
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|err| format!("Failed to parse hex byte: {}", err))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::io::Cursor;
-
-    use super::*;
-
-    #[test]
-    fn test_pattern_scan() {
-        let pattern =
-            "81 08 10 00 00 48 ? ? ? ? ? ? 66 44 89 01 48 3B D0 74 ? 44 89 ? ? ? ? ? 44 88 00";
-        let bytes = space_hex_to_bytes("45 33 C0 48 8D 81 08 10 00 00 48 8D 15 B7 FF AA 00 66 44 89 01 48 3B D0 74 0A 44 89 81 04 10 00 00 44 88 00").unwrap();
-        let bytes_slice = bytes.as_slice();
-        pattern_scan::scan_first_match(Cursor::new(bytes_slice), pattern).unwrap();
-    }
-}

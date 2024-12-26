@@ -9,7 +9,6 @@ use crate::game::{
     mt_type::{GameObject, GameObjectExt},
     singleton::SingletonManager,
 };
-use crate::memory::MemoryUtils;
 
 static mut INPUT: Option<Input> = None;
 
@@ -54,51 +53,6 @@ impl Input {
 
     pub fn controller(&self) -> &Controller {
         &self.controller
-    }
-
-    fn get_s_keyboard() -> Result<*mut c_void> {
-        let keyboard_ptr = SingletonManager::instance().get_ptr("sMhKeyboard");
-        if let Some(keyboard_ptr) = keyboard_ptr {
-            return Ok(keyboard_ptr);
-        }
-
-        log::warn!("Failed to get sMhKeyboard singleton, trying other methods.");
-
-        let static_address = MemoryUtils::scan_relative_static("48 ?? ?? ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00", 7)?;
-
-        MemoryUtils::check_permission_read(static_address)?;
-        let keyboard_ptr = unsafe { *(static_address as *const *mut c_void) };
-        log::debug!(
-            "Found sMhKeyboard singleton at {:p} from static address 0x{:x}.",
-            keyboard_ptr,
-            static_address
-        );
-
-        Ok(keyboard_ptr)
-    }
-
-    fn get_s_controller() -> Result<*mut c_void> {
-        let controller_ptr = SingletonManager::instance().get_ptr("sMhSteamController");
-        if let Some(controller_ptr) = controller_ptr {
-            return Ok(controller_ptr);
-        }
-
-        log::warn!("Failed to get sMhSteamController singleton, trying other methods.");
-
-        let static_address = MemoryUtils::scan_relative_static(
-            "48 8B D9 45 33 C0 48 8B 0D ?? ?? ?? ?? 33 D2 E8 ?? ?? ?? ?? F3",
-            9,
-        )?;
-
-        MemoryUtils::check_permission_read(static_address)?;
-        let controller_ptr = unsafe { *(static_address as *const *mut c_void) };
-        log::debug!(
-            "Found sMhSteamController singleton at {:p} from static address 0x{:x}.",
-            controller_ptr,
-            static_address
-        );
-
-        Ok(controller_ptr)
     }
 }
 

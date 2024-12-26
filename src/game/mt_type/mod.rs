@@ -1,13 +1,9 @@
+#![allow(dead_code)]
+
 use std::ffi::c_void;
 
-mod common;
-mod entity;
-mod model;
 mod mt_dti;
 
-pub use common::{Quaternion, Vec3};
-pub use entity::Entity;
-pub use model::Model;
 pub use mt_dti::MtDti;
 
 /// GameObject trait

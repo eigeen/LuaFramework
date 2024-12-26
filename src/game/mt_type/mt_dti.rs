@@ -35,9 +35,4 @@ impl MtDti {
     pub fn child(&self) -> MtDti {
         self.get_object(0x18)
     }
-
-    /// Get all classes in the list.
-    pub fn children(&self) -> Vec<MtDti> {
-        unimplemented!()
-    }
 }
