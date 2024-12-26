@@ -316,14 +316,20 @@ impl Drop for LuaVM {
         // 发布移除事件
         let lua_state_ptr = library::runtime::RuntimeModule::get_state_ptr(&self.lua).unwrap();
         crate::extension::CoreAPI::instance().dispatch_lua_state_destroyed(lua_state_ptr);
+        // 执行 on_destroy 回调
+        if let Err(e) = library::runtime::RuntimeModule::invoke_on_destroy(&self.lua) {
+            log::error!(
+                "Failed to invoke `on_destroy` in LuaVM({}):\n{}",
+                self.name(),
+                e
+            );
+        };
         // 移除frida hooks
-        log::debug!("Removing LuaVM({}) frida hooks", self.name());
         let result = library::sdk::frida::FridaModule::remove_all_hooks(&self.lua);
         if let Err(e) = result {
             log::error!("Failed to remove LuaVM({}) frida hooks: {}", self.name(), e);
         }
         // 移除patches
-        log::debug!("Removing LuaVM({}) patches", self.name());
         let result = library::sdk::memory::MemoryModule::restore_all_patches(&self.lua);
         if let Err(e) = result {
             log::error!("Failed to restore LuaVM({}) patches: {}", self.name(), e);
@@ -385,6 +391,7 @@ impl LuaVM {
         library::utility::UtilityModule::register_library(&self.lua, &globals)?;
         library::sdk::SdkModule::register_library(&self.lua, &globals)?;
         library::render::RenderModule::register_library(&self.lua, &globals)?;
+        library::fs::FSModule::register_library(&self.lua, &globals)?;
 
         Ok(())
     }

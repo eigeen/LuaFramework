@@ -73,6 +73,14 @@ impl LuaModule for RuntimeModule {
                 Ok(())
             })?,
         )?;
+        // 设置on_destroy回调
+        core_table.set(
+            "on_destroy",
+            lua.create_function(|lua, fun: LuaFunction| {
+                lua.globals().set("_on_destroy", fun)?;
+                Ok(())
+            })?,
+        )?;
 
         core_table.set(
             "get_last_error",
@@ -105,6 +113,12 @@ impl RuntimeModule {
         let result: i64 = get_state_ptr.call(())?;
 
         Ok(result as usize)
+    }
+
+    pub fn invoke_on_destroy(lua: &Lua) -> LuaResult<()> {
+        let on_destroy = lua.globals().get::<LuaFunction>("_on_destroy")?;
+        on_destroy.call::<()>(())?;
+        Ok(())
     }
 }
 
