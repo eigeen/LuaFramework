@@ -38,6 +38,7 @@ impl LuaModule for FSModule {
                 let json_string = value_to_json_string(lua, value)?;
 
                 let full_path = Path::new(FS_BASE_PATH).join(path);
+                create_dirs(&full_path)?;
                 std::fs::write(&full_path, json_string).map_err(|e| {
                     Error::IoWithContext(e, format!("json.dump: open file {}", full_path.display()))
                         .into_lua_err()
@@ -51,6 +52,7 @@ impl LuaModule for FSModule {
                 let json_string = value_to_json_string_pretty(lua, value)?;
 
                 let full_path = Path::new(FS_BASE_PATH).join(path);
+                create_dirs(&full_path)?;
                 std::fs::write(&full_path, json_string).map_err(|e| {
                     Error::IoWithContext(
                         e,
@@ -90,6 +92,7 @@ impl LuaModule for FSModule {
                 let toml_string = value_to_toml_string(lua, value)?;
 
                 let full_path = Path::new(FS_BASE_PATH).join(path);
+                create_dirs(&full_path)?;
                 std::fs::write(&full_path, toml_string).map_err(|e| {
                     Error::IoWithContext(e, format!("toml.dump: open file {}", full_path.display()))
                         .into_lua_err()
@@ -103,6 +106,7 @@ impl LuaModule for FSModule {
                 let toml_string = value_to_toml_string_pretty(lua, value)?;
 
                 let full_path = Path::new(FS_BASE_PATH).join(path);
+                create_dirs(&full_path)?;
                 std::fs::write(&full_path, toml_string).map_err(|e| {
                     Error::IoWithContext(
                         e,
@@ -118,6 +122,18 @@ impl LuaModule for FSModule {
 
         Ok(())
     }
+}
+
+fn create_dirs(path: &Path) -> LuaResult<()> {
+    let Some(parent) = path.parent() else {
+        return Ok(());
+    };
+    if !parent.exists() {
+        std::fs::create_dir_all(parent).map_err(|e| {
+            Error::IoWithContext(e, "create dir for data".to_string()).into_lua_err()
+        })?;
+    }
+    Ok(())
 }
 
 fn value_to_json_string(lua: &Lua, value: LuaValue) -> LuaResult<String> {
