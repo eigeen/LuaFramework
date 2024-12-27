@@ -1,3 +1,4 @@
+use colored::{ColoredString, Colorize};
 use mlua::{lua_State, prelude::*};
 
 use crate::error::Error;
@@ -116,8 +117,9 @@ impl RuntimeModule {
     }
 
     pub fn invoke_on_destroy(lua: &Lua) -> LuaResult<()> {
-        let on_destroy = lua.globals().get::<LuaFunction>("_on_destroy")?;
-        on_destroy.call::<()>(())?;
+        if let Ok(on_destroy) = lua.globals().get::<LuaFunction>("_on_destroy") {
+            on_destroy.call::<()>(())?;
+        }
         Ok(())
     }
 }
@@ -140,6 +142,10 @@ fn get_name(lua: &Lua) -> String {
         .unwrap_or_else(|_| "Script".to_string())
 }
 
+fn get_prefix(lua: &Lua) -> ColoredString {
+    format!("[{}]", get_name(lua)).white()
+}
+
 fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
     crate::utility::show_error_msgbox(&args.join(" "), &get_name(lua));
@@ -148,31 +154,31 @@ fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
 
 fn info(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::info!("[{}] {}", get_name(lua), args.join(" "));
+    log::info!("{} {}", get_prefix(lua), args.join(" "));
     Ok(())
 }
 
 fn warn(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::warn!("[{}] {}", get_name(lua), args.join(" "));
+    log::warn!("{} {}", get_prefix(lua), args.join(" "));
     Ok(())
 }
 
 fn error(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::error!("[{}] {}", get_name(lua), args.join(" "));
+    log::error!("{} {}", get_prefix(lua), args.join(" "));
     Ok(())
 }
 
 fn debug(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::debug!("[{}] DEBUG {}", get_name(lua), args.join(" "));
+    log::debug!("{} {}", get_prefix(lua), args.join(" "));
     Ok(())
 }
 
 fn trace(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    log::trace!("[{}] TRACE {}", get_name(lua), args.join(" "));
+    log::trace!("{} TRACE {}", get_prefix(lua), args.join(" "));
     Ok(())
 }
 
