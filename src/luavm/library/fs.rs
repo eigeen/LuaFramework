@@ -1,4 +1,4 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use mlua::prelude::*;
 
@@ -23,7 +23,7 @@ impl LuaModule for FSModule {
         json_table.set(
             "load",
             lua.create_function(|lua, path: String| {
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 let content = std::fs::read_to_string(&full_path).map_err(|e| {
                     Error::IoWithContext(e, format!("json.load: open file {}", full_path.display()))
                         .into_lua_err()
@@ -37,7 +37,7 @@ impl LuaModule for FSModule {
             lua.create_function(|lua, (path, value): (String, LuaValue)| {
                 let json_string = value_to_json_string(lua, value)?;
 
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 create_dirs(&full_path)?;
                 std::fs::write(&full_path, json_string).map_err(|e| {
                     Error::IoWithContext(e, format!("json.dump: open file {}", full_path.display()))
@@ -51,7 +51,7 @@ impl LuaModule for FSModule {
             lua.create_function(|lua, (path, value): (String, LuaValue)| {
                 let json_string = value_to_json_string_pretty(lua, value)?;
 
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 create_dirs(&full_path)?;
                 std::fs::write(&full_path, json_string).map_err(|e| {
                     Error::IoWithContext(
@@ -77,7 +77,7 @@ impl LuaModule for FSModule {
         toml_table.set(
             "load",
             lua.create_function(|lua, path: String| {
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 let content = std::fs::read_to_string(&full_path).map_err(|e| {
                     Error::IoWithContext(e, format!("toml.load: open file {}", full_path.display()))
                         .into_lua_err()
@@ -91,7 +91,7 @@ impl LuaModule for FSModule {
             lua.create_function(|lua, (path, value): (String, LuaValue)| {
                 let toml_string = value_to_toml_string(lua, value)?;
 
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 create_dirs(&full_path)?;
                 std::fs::write(&full_path, toml_string).map_err(|e| {
                     Error::IoWithContext(e, format!("toml.dump: open file {}", full_path.display()))
@@ -105,7 +105,7 @@ impl LuaModule for FSModule {
             lua.create_function(|lua, (path, value): (String, LuaValue)| {
                 let toml_string = value_to_toml_string_pretty(lua, value)?;
 
-                let full_path = Path::new(FS_BASE_PATH).join(path);
+                let full_path = create_abs_path(&path)?;
                 create_dirs(&full_path)?;
                 std::fs::write(&full_path, toml_string).map_err(|e| {
                     Error::IoWithContext(
@@ -122,6 +122,23 @@ impl LuaModule for FSModule {
 
         Ok(())
     }
+}
+
+/// Check and create valid absolute path.
+fn create_abs_path(path: impl AsRef<Path>) -> LuaResult<PathBuf> {
+    if path.as_ref().is_absolute() {
+        return Err(Error::PathNotAllowed("path is absolute".to_string()).into_lua_err());
+    }
+    for component in path.as_ref().components() {
+        if component == std::path::Component::ParentDir {
+            return Err(
+                Error::PathNotAllowed("parent dir is not allowed".to_string()).into_lua_err(),
+            );
+        }
+    }
+
+    let abs_path = Path::new(FS_BASE_PATH).join(path.as_ref());
+    Ok(abs_path)
 }
 
 fn create_dirs(path: &Path) -> LuaResult<()> {

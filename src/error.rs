@@ -38,6 +38,8 @@ pub enum Error {
     SingletonNotFound(String),
     #[error("Memory patch already exists at 0x{0:x}")]
     PatchAlreadyExists(usize),
+    #[error("Path not allowed: {0}")]
+    PathNotAllowed(String),
 }
 
 #[derive(Debug, Clone)]
