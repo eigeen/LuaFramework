@@ -7,7 +7,7 @@ local sMhAI = sdk.get_singleton("sMhAI")
 local World = {}
 
 ---@return World
-function World.default()
+function World.new()
     local world_data = sMhAI:offset(0x90, 0x40, 0x90, 0x18):read_ptr()
     local map = Player.get_master_player().map_data
 
