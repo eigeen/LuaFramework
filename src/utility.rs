@@ -65,13 +65,13 @@ pub fn show_error_msgbox(msg: &str, caption: &str) {
 #[macro_export]
 macro_rules! static_ref {
     ($name:ident) => {
-        &*std::ptr::addr_of!($name)
+        &*&raw const $name
     };
 }
 
 #[macro_export]
 macro_rules! static_mut {
     ($name:ident) => {
-        &mut *std::ptr::addr_of_mut!($name)
+        &mut *&raw mut $name
     };
 }
