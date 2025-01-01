@@ -1,7 +1,8 @@
 use std::{
-    cell::RefCell,
+    cell::{LazyCell, RefCell},
     collections::{HashMap, HashSet},
     ffi::c_void,
+    ptr::addr_of_mut,
     sync::LazyLock,
 };
 
@@ -12,19 +13,23 @@ use crate::{
     address::AddressRepository,
     game::mt_type::{EmptyGameObject, GameObjectExt},
     memory::MemoryUtils,
+    static_mut, static_ref,
 };
 use crate::{error::Result, game::mt_type::GameObject};
 
 static mut HOOK: Option<InlineHook> = None;
-static mut SINGLETONS_TEMP: LazyLock<RefCell<HashSet<usize>>> =
-    LazyLock::new(|| RefCell::new(HashSet::new()));
+static mut SINGLETONS_TEMP: LazyCell<RefCell<HashSet<usize>>> =
+    LazyCell::new(|| RefCell::new(HashSet::new()));
 
 type FuncType = extern "C" fn(*const c_void) -> *const c_void;
 
 unsafe extern "C" fn csystem_ctor_hooked(instance: *const c_void) -> *const c_void {
-    SINGLETONS_TEMP.borrow_mut().insert(instance as usize);
+    static_ref!(SINGLETONS_TEMP)
+        .borrow_mut()
+        .insert(instance as usize);
 
-    let original: FuncType = std::mem::transmute(HOOK.as_ref().unwrap().original());
+    let hook = &mut *addr_of_mut!(HOOK);
+    let original: FuncType = std::mem::transmute(hook.as_ref().unwrap().original());
     original(instance)
 }
 
@@ -46,7 +51,7 @@ impl SingletonManager {
 
         unsafe {
             let hook = safetyhook::create_inline(target_ptr as _, csystem_ctor_hooked as _)?;
-            HOOK.replace(hook);
+            static_mut!(HOOK).replace(hook);
         }
 
         Ok(())
@@ -57,7 +62,7 @@ impl SingletonManager {
     /// Run it after mhMain ctor.
     pub fn parse_singletons(&self) {
         let mut singletons = self.singletons.lock();
-        let mut temp_singletons = unsafe { SINGLETONS_TEMP.borrow_mut() };
+        let mut temp_singletons = unsafe { static_ref!(SINGLETONS_TEMP).borrow_mut() };
 
         for addr in temp_singletons.iter().cloned() {
             let mt_obj = EmptyGameObject::from_ptr(addr as *mut _);

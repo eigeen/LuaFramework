@@ -34,9 +34,10 @@ impl CallError {
         }
 
         unsafe {
+            let last_error_msg = &mut *addr_of_mut!(LAST_ERROR_MESSAGE);
             std::ptr::copy_nonoverlapping(
                 msg_bytes.as_ptr(),
-                LAST_ERROR_MESSAGE.as_mut_ptr(),
+                last_error_msg.as_mut_ptr(),
                 msg_bytes.len(),
             );
         }

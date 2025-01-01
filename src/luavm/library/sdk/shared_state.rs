@@ -1,6 +1,6 @@
 //! 共享状态模块，用于跨多个 Lua 脚本实例传递数据
 
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use mlua::prelude::*;
 use parking_lot::Mutex;
@@ -40,13 +40,8 @@ pub struct SharedState {
 
 impl SharedState {
     pub fn instance() -> &'static SharedState {
-        static mut INSTANCE: Option<SharedState> = None;
-        unsafe {
-            if INSTANCE.is_none() {
-                INSTANCE = Some(SharedState::default());
-            }
-            INSTANCE.as_ref().unwrap()
-        }
+        static INSTANCE: LazyLock<SharedState> = LazyLock::new(SharedState::default);
+        &INSTANCE
     }
 
     pub fn set_state_lua(&self, lua: &Lua, key: LuaValue, value: LuaValue) -> LuaResult<()> {

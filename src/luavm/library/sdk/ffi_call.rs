@@ -13,6 +13,7 @@ use crate::{
     extension::CoreAPI,
     luavm::library::{utility::UtilityModule, LuaModule},
     memory::MemoryUtils,
+    static_mut,
 };
 
 use super::{luaptr::LuaPtr, string::ManagedString};
@@ -41,11 +42,12 @@ impl LuaModule for FFICallModule {
 
 fn acquire_ffi_functions() {
     unsafe {
-        if CALL_C_FUNCTION.is_none() {
+        let fun = static_mut!(CALL_C_FUNCTION);
+        if fun.is_none() {
             if let Some(call_c_function) =
                 CoreAPI::instance().get_function("libffi::call_c_function")
             {
-                CALL_C_FUNCTION = Some(std::mem::transmute(call_c_function));
+                *fun = Some(std::mem::transmute(call_c_function));
             };
         }
     }

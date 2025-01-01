@@ -108,10 +108,10 @@ struct InlineEnterArgs<'a> {
     context: &'a InvocationContext<'a>,
 }
 
-unsafe impl<'a> Send for InlineEnterArgs<'a> {}
-unsafe impl<'a> Sync for InlineEnterArgs<'a> {}
+unsafe impl Send for InlineEnterArgs<'_> {}
+unsafe impl Sync for InlineEnterArgs<'_> {}
 
-impl<'a> LuaUserData for InlineEnterArgs<'a> {
+impl LuaUserData for InlineEnterArgs<'_> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(LuaMetaMethod::Index, |_lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();
@@ -195,10 +195,10 @@ struct InlineLeaveArgs<'a> {
     context: &'a InvocationContext<'a>,
 }
 
-unsafe impl<'a> Send for InlineLeaveArgs<'a> {}
-unsafe impl<'a> Sync for InlineLeaveArgs<'a> {}
+unsafe impl Send for InlineLeaveArgs<'_> {}
+unsafe impl Sync for InlineLeaveArgs<'_> {}
 
-impl<'a> LuaUserData for InlineLeaveArgs<'a> {
+impl LuaUserData for InlineLeaveArgs<'_> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();

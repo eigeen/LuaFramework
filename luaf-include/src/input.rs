@@ -193,7 +193,7 @@ pub enum KeyCode {
 #[repr(transparent)]
 pub struct Input<'a>(pub &'a CoreAPIInput);
 
-impl<'a> Input<'a> {
+impl Input<'_> {
     pub fn keyboard(&self) -> InputKeyboard {
         InputKeyboard(self.0)
     }
@@ -206,7 +206,7 @@ impl<'a> Input<'a> {
 #[repr(transparent)]
 pub struct InputKeyboard<'a>(&'a CoreAPIInput);
 
-impl<'a> InputKeyboard<'a> {
+impl InputKeyboard<'_> {
     pub fn is_pressed(&self, key: KeyCode) -> bool {
         (self.0.is_key_pressed)(key as u32)
     }
@@ -219,7 +219,7 @@ impl<'a> InputKeyboard<'a> {
 #[repr(transparent)]
 pub struct InputController<'a>(&'a CoreAPIInput);
 
-impl<'a> InputController<'a> {
+impl InputController<'_> {
     pub fn is_pressed(&self, button: ControllerButton) -> bool {
         (self.0.is_controller_pressed)(button as u32)
     }

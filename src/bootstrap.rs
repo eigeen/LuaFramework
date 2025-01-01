@@ -1,8 +1,8 @@
 use crate::address::AddressRepository;
 
 use crate::error::Error;
-use crate::extension::CoreAPI;
 use crate::luavm::LuaVMManager;
+use crate::{static_mut, static_ref};
 
 static mut MH_MAIN_CTOR_HOOK: Option<safetyhook::MidHook> = None;
 
@@ -11,7 +11,7 @@ static mut ON_POST_MH_MAIN_CTOR_CALLBACK: Option<
 > = None;
 
 unsafe extern "C" fn mh_main_ctor_hooked(_ctx: &mut safetyhook::mid_hook::Context) {
-    if let Some(on_post) = ON_POST_MH_MAIN_CTOR_CALLBACK.take() {
+    if let Some(on_post) = static_mut!(ON_POST_MH_MAIN_CTOR_CALLBACK).take() {
         if let Err(e) = on_post() {
             log::error!("Failed to run bootstrap callback: {}", e)
         };
@@ -32,7 +32,7 @@ fn create_mh_main_ctor_hook() -> Result<(), Error> {
 
 pub fn setup() -> Result<(), Error> {
     unsafe {
-        if MH_MAIN_CTOR_HOOK.is_none() {
+        if static_ref!(MH_MAIN_CTOR_HOOK).is_none() {
             create_mh_main_ctor_hook()?;
         }
 

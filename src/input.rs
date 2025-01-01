@@ -9,6 +9,7 @@ use crate::game::{
     mt_type::{GameObject, GameObjectExt},
     singleton::SingletonManager,
 };
+use crate::static_ref;
 
 static mut INPUT: Option<Input> = None;
 
@@ -32,7 +33,7 @@ impl Input {
             INPUT = Some(Self {
                 keyboard: Keyboard::from_ptr(keyboard),
                 controller: Controller::from_ptr(controller),
-            })
+            });
         }
 
         Ok(())
@@ -40,10 +41,11 @@ impl Input {
 
     pub fn instance() -> &'static Input {
         unsafe {
-            if INPUT.is_none() {
+            let input = static_ref!(INPUT);
+            if input.is_none() {
                 panic!("Using Input before initialization.");
             }
-            INPUT.as_ref().unwrap_unchecked()
+            input.as_ref().unwrap_unchecked()
         }
     }
 

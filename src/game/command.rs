@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use crate::{address::AddressRepository, error::Result, luavm::LuaVMManager};
+use crate::{address::AddressRepository, error::Result, luavm::LuaVMManager, static_ref};
 
 static mut HOOK: Option<safetyhook::InlineHook> = None;
 
@@ -14,7 +14,8 @@ unsafe extern "C" fn hooked_function(a1: *const i8) -> i8 {
     handle_command(input);
 
     // 调用原始函数
-    let original: Func = std::mem::transmute(HOOK.as_ref().unwrap_unchecked().original());
+    let original: Func =
+        std::mem::transmute(static_ref!(HOOK).as_ref().unwrap_unchecked().original());
     original(a1)
 }
 

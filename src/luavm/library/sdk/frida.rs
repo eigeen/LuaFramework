@@ -401,8 +401,8 @@ struct CpuContextArgs<'a> {
     context: frida_gum::CpuContext<'a>,
 }
 
-unsafe impl<'a> Send for CpuContextArgs<'a> {}
-unsafe impl<'a> Sync for CpuContextArgs<'a> {}
+unsafe impl Send for CpuContextArgs<'_> {}
+unsafe impl Sync for CpuContextArgs<'_> {}
 
 impl<'a> CpuContextArgs<'a> {
     pub fn new(context: frida_gum::CpuContext<'a>) -> Self {
@@ -410,7 +410,7 @@ impl<'a> CpuContextArgs<'a> {
     }
 }
 
-impl<'a> LuaUserData for CpuContextArgs<'a> {
+impl LuaUserData for CpuContextArgs<'_> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
         methods.add_meta_method(LuaMetaMethod::Index, |_lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();

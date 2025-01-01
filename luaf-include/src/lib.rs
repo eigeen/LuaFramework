@@ -3,7 +3,7 @@ pub mod logger;
 
 pub mod input;
 
-use std::ffi::c_void;
+use std::{ffi::c_void, ptr::addr_of_mut};
 
 pub use input::{ControllerButton, KeyCode};
 
@@ -22,18 +22,20 @@ unsafe impl Sync for API {}
 impl API {
     pub fn initialize(param: &'static CoreAPIParam) {
         unsafe {
-            if INSTANCE.is_none() {
-                INSTANCE = Some(API { param });
+            let this = &mut *addr_of_mut!(INSTANCE);
+            if this.is_none() {
+                this.replace(API { param });
             }
         }
     }
 
     pub fn get() -> &'static Self {
         unsafe {
-            if INSTANCE.is_none() {
+            let this = &mut *addr_of_mut!(INSTANCE);
+            if this.is_none() {
                 panic!("API used before initialization.");
             }
-            INSTANCE.as_ref().unwrap()
+            this.as_ref().unwrap()
         }
     }
 
@@ -58,7 +60,7 @@ impl API {
 #[repr(transparent)]
 pub struct CoreFunctions<'a>(&'a CoreAPIFunctions);
 
-impl<'a> CoreFunctions<'a> {
+impl CoreFunctions<'_> {
     pub fn add_core_function(&self, name: &str, func: *const c_void) {
         let name_bytes = name.as_bytes();
         (self.0.add_core_function)(name_bytes.as_ptr(), name_bytes.len() as u32, func)
@@ -110,7 +112,7 @@ impl<'a> CoreFunctions<'a> {
 #[repr(transparent)]
 pub struct LuaFunctions<'a>(&'a CoreAPILua);
 
-impl<'a> LuaFunctions<'a> {
+impl LuaFunctions<'_> {
     pub fn on_lua_state_created(&self, cb: OnLuaStateCreatedCb) {
         (self.0.on_lua_state_created)(cb)
     }
@@ -133,7 +135,10 @@ impl<'a> LuaFunctions<'a> {
 static mut WITH_LUA_LOCK_CB: Option<Box<dyn FnOnce() + Send>> = None;
 
 extern "C" fn universal_with_lua_lock(_user_data: *mut c_void) {
-    if let Some(callback) = unsafe { WITH_LUA_LOCK_CB.take() } {
-        callback();
+    unsafe {
+        let cb = &mut *addr_of_mut!(WITH_LUA_LOCK_CB);
+        if let Some(callback) = cb.take() {
+            callback();
+        }
     }
 }

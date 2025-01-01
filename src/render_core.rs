@@ -11,6 +11,7 @@ use rand::RngCore;
 use crate::extension::CoreAPI;
 use crate::input::Input;
 use crate::luavm::LuaVMManager;
+use crate::static_mut;
 
 mod draw;
 
@@ -63,10 +64,11 @@ impl RenderManager {
         static mut INSTANCE: Option<RenderManager> = None;
 
         unsafe {
-            if INSTANCE.is_none() {
-                INSTANCE = Some(RenderManager::new());
+            let this = static_mut!(INSTANCE);
+            if this.is_none() {
+                *this = Some(RenderManager::new());
             }
-            INSTANCE.as_mut().unwrap()
+            this.as_mut().unwrap()
         }
     }
 
@@ -112,7 +114,7 @@ impl RenderManager {
 
     /// 注册字体
     fn register_font(&mut self, sources_name: &str, sources: &[FontSource]) {
-        let ctx = unsafe { IMGUI_CONTEXT.as_mut().unwrap() };
+        let ctx = unsafe { static_mut!(IMGUI_CONTEXT).as_mut().unwrap() };
 
         let font = ctx.fonts().add_font(sources);
 
@@ -149,8 +151,9 @@ pub unsafe extern "C" fn imgui_core_initialize(
     menu_key: u32,
 ) -> *mut imgui_sys::ImGuiContext {
     // 创建 Context
-    if IMGUI_CONTEXT.is_none() {
-        IMGUI_CONTEXT = Some(Context::create());
+    let context = static_mut!(IMGUI_CONTEXT);
+    if context.is_none() {
+        *context = Some(Context::create());
     }
 
     let render_manager = RenderManager::get_mut();
@@ -202,7 +205,7 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         render_manager.show = !render_manager.show;
     };
 
-    let ctx = IMGUI_CONTEXT.as_mut().unwrap();
+    let ctx = static_mut!(IMGUI_CONTEXT).as_mut().unwrap();
     let ui = ctx.new_frame();
 
     // 处理指针显示

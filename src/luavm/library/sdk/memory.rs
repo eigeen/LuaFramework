@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::LazyLock};
 
 use mlua::prelude::*;
 use parking_lot::Mutex;
@@ -248,14 +248,10 @@ struct MemoryPatchManager {
 }
 
 impl MemoryPatchManager {
-    pub fn instance() -> &'static mut Self {
-        static mut MEMORY_PATCH_MANAGER: Option<MemoryPatchManager> = None;
-        unsafe {
-            if MEMORY_PATCH_MANAGER.is_none() {
-                MEMORY_PATCH_MANAGER = Some(MemoryPatchManager::default());
-            }
-            MEMORY_PATCH_MANAGER.as_mut().unwrap()
-        }
+    pub fn instance() -> &'static Self {
+        static MEMORY_PATCH_MANAGER: LazyLock<MemoryPatchManager> =
+            LazyLock::new(MemoryPatchManager::default);
+        &MEMORY_PATCH_MANAGER
     }
 
     pub fn new_patch(&self, address: usize, data: &[u8]) -> Result<()> {
