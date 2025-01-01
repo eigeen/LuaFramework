@@ -30,7 +30,12 @@ fn panic_hook(info: &std::panic::PanicHookInfo) {
 
 fn main_entry() -> anyhow::Result<()> {
     std::panic::set_hook(Box::new(panic_hook));
-    logger::init_logger().unwrap();
+    if let Err(e) = logger::init_logger() {
+        utility::show_error_msgbox(
+            &format!("Failed to initialize logger: {:#}", e),
+            "LuaFramework Error",
+        );
+    }
 
     // 初始化hook等资源
     game::command::init_game_command()?;
