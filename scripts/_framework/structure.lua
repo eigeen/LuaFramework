@@ -35,8 +35,7 @@ local function get_field(ptr, def)
     elseif ty == "f64" then
         return offset_ptr:read_f64()
     elseif ty == "string" then
-        local str_ptr = offset_ptr:read_ptr()
-        return sdk.String.from_ptr(str_ptr)
+        return sdk.String.from_ptr(offset_ptr)
     elseif ty == "pointer" then
         return offset_ptr:read_ptr()
     end
