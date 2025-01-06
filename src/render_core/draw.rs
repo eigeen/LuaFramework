@@ -1,8 +1,8 @@
 use std::collections::HashMap;
 
-use cimgui::TreeNodeFlags;
-
+use crate::config::Config;
 use crate::luavm::LuaVMManager;
+use cimgui::TreeNodeFlags;
 
 use super::RenderManager;
 
@@ -32,7 +32,34 @@ pub fn draw_options_tab(ui: &cimgui::Ui) {
         return;
     };
 
-    ui.text("TODO")
+    let mut font_size = Config::global().ui.font_size;
+    ui.text("Font Size");
+    ui.same_line_with_spacing(0.0, 5.0);
+    if ui
+        .input_float("##font_size", &mut font_size)
+        .step(1.0)
+        .display_format("%.1f")
+        .auto_select_all(false)
+        .build()
+    {
+        if font_size > 5.0 && font_size <= 100.0 {
+            // change config
+            Config::global_mut().ui.font_size = font_size;
+
+            let render_manager = RenderManager::get_mut();
+            if let Some(default_font) = render_manager
+                .fonts_mut()
+                .get_mut(RenderManager::DEFAULT_FONT_NAME)
+            {
+                default_font.entries.iter_mut().for_each(|entry| {
+                    if let Some(config) = &mut entry.config {
+                        config.size_pixels = font_size;
+                    }
+                });
+                render_manager.reload_fonts();
+            }
+        }
+    };
 }
 
 fn draw_script_manager_tab(ui: &cimgui::Ui) {
@@ -45,15 +72,17 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
             log::error!("Failed to reload all scripts: {}", e);
         }
     }
-    ui.same_line();
+    ui.same_line_with_spacing(0.0, 5.0);
     if ui.button("Open Folder") {
         if let Ok(abs_path) = std::fs::canonicalize(LuaVMManager::LUA_SCRIPTS_DIR) {
             let _ = std::process::Command::new("explorer.exe")
                 .arg(abs_path)
                 .spawn();
+        } else {
+            log::warn!("No such directory: {}", LuaVMManager::LUA_SCRIPTS_DIR);
         }
     }
-    ui.same_line();
+    ui.same_line_with_spacing(0.0, 5.0);
     if ui.button("Spawn Console") {
         crate::logger::spawn_logger_console();
     }

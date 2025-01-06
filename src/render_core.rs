@@ -1,27 +1,27 @@
-use std::collections::HashMap;
-use std::ffi::c_void;
-
+use crate::config::Config;
+use crate::extension::CoreAPI;
+use crate::input::Input;
+use crate::luavm::LuaVMManager;
+use crate::{static_mut, static_ref};
 use anyhow::Context as _;
 use cimgui::{sys as imgui_sys, FontConfig, FontGlyphRanges, FontId, FontSource, Io};
 use cimgui::{Context, DrawData, WindowFocusedFlags, WindowHoveredFlags};
 use log::{debug, error, warn};
 use luaf_include::KeyCode;
 use rand::RngCore;
-
-use crate::extension::CoreAPI;
-use crate::input::Input;
-use crate::luavm::LuaVMManager;
-use crate::static_mut;
+use std::cell::OnceCell;
+use std::collections::HashMap;
+use std::ffi::c_void;
+use std::path::PathBuf;
 
 mod draw;
 
-type RenderCallback = unsafe extern "C" fn(*mut imgui_sys::ImGuiContext);
-
 static mut IMGUI_CONTEXT: Option<Context> = None;
 
+type InvalidateDeviceFn = extern "C" fn();
+static mut INVALIDATE_DEVICE_FN: OnceCell<Option<InvalidateDeviceFn>> = OnceCell::new();
+
 pub struct RenderManager {
-    /// 渲染回调列表，key为窗口句柄，value为回调函数指针（C函数）
-    render_callbacks: HashMap<u64, *const c_void>,
     /// 是否为DX12
     is_d3d12: bool,
     /// 全局显示/隐藏切换快捷键
@@ -35,15 +35,18 @@ pub struct RenderManager {
     /// 鼠标位置缩放
     mouse_scale: Vec2,
     /// 已注册的字体
-    fonts: HashMap<String, FontId>,
+    fonts: HashMap<String, FontRegisterSource>,
+    need_reload_fonts: bool,
+    need_invalidate_devices: bool,
 }
 
 impl RenderManager {
-    const DEFAULT_FONT_NAME: &str = "SourceHanSansCN-Regular";
+    const DEFAULT_FONT_NAME: &'static str = "SourceHanSansCN-Regular";
+    const STD_FONT_SIZE: f32 = 20.0;
+    const STD_VIEWPORT_SIZE: f32 = 1080.0;
 
     fn new() -> Self {
         Self {
-            render_callbacks: HashMap::new(),
             is_d3d12: false,
             menu_key: KeyCode::F7,
             show: true,
@@ -51,13 +54,16 @@ impl RenderManager {
             viewport_size: Size::default(),
             mouse_scale: Vec2::new(1.0, 1.0),
             fonts: HashMap::new(),
+            need_reload_fonts: false,
+            need_invalidate_devices: false,
         }
     }
 
     pub fn register_core_functions() {
-        CoreAPI::instance()
-            .register_function("Render::core_imgui_initialize", imgui_core_initialize as _);
-        CoreAPI::instance().register_function("Render::core_imgui_render", imgui_core_render as _);
+        let core_api = CoreAPI::instance();
+        core_api.register_function("Render::core_imgui_initialize", imgui_core_initialize as _);
+        core_api.register_function("Render::core_imgui_render", imgui_core_render as _);
+        core_api.register_function("Render::core_imgui_pre_render", imgui_core_pre_render as _);
     }
 
     pub fn get_mut() -> &'static mut RenderManager {
@@ -72,21 +78,8 @@ impl RenderManager {
         }
     }
 
-    /// 注册渲染回调函数，返回窗口句柄
-    pub fn register_render_callback(&mut self, callback: RenderCallback) -> u64 {
-        let mut id = rand::thread_rng().next_u64();
-        while self.render_callbacks.contains_key(&id) {
-            id = rand::thread_rng().next_u64();
-        }
-
-        self.render_callbacks.insert(id, callback as *const c_void);
-
-        id
-    }
-
-    /// 注销渲染回调函数，返回是否成功注销
-    pub fn remove_render_callback(&mut self, handle: u64) -> bool {
-        self.render_callbacks.remove(&handle).is_some()
+    pub fn get_context() -> &'static mut Context {
+        unsafe { static_mut!(IMGUI_CONTEXT).as_mut().unwrap() }
     }
 
     /// 渲染回调
@@ -95,53 +88,119 @@ impl RenderManager {
         LuaVMManager::instance().invoke_fn("on_imgui");
     }
 
-    pub fn render_draw(&self, ctx_raw: *mut imgui_sys::ImGuiContext) {
-        // C回调函数
-        for (_, callback) in self.render_callbacks.iter() {
-            unsafe {
-                let func: RenderCallback = std::mem::transmute(*callback);
-                func(ctx_raw);
-            }
-        }
+    pub fn render_draw(&self, _ctx_raw: *mut imgui_sys::ImGuiContext) {
         // Lua回调函数 on_draw
         LuaVMManager::instance().invoke_fn("on_draw");
     }
 
-    /// 根据名字获取字体
+    pub fn fonts_mut(&mut self) -> &mut HashMap<String, FontRegisterSource> {
+        &mut self.fonts
+    }
+
     pub fn get_font(&self, name: &str) -> Option<FontId> {
-        self.fonts.get(name).cloned()
+        self.fonts.get(name).and_then(|f| f.id)
+    }
+
+    /// 重新加载字体
+    ///
+    /// 此操作仅登记请求，操作会在下一帧生效
+    pub fn reload_fonts(&mut self) {
+        self.need_reload_fonts = true;
+    }
+
+    fn do_reload_fonts(&mut self) -> anyhow::Result<()> {
+        let ctx = Self::get_context();
+
+        ctx.fonts().clear();
+        let fonts_cloned = std::mem::take(&mut self.fonts);
+
+        for (_, source) in fonts_cloned {
+            self.register_font(source)?;
+        }
+
+        Ok(())
     }
 
     /// 注册字体
-    fn register_font(&mut self, sources_name: &str, sources: &[FontSource]) {
-        let ctx = unsafe { static_mut!(IMGUI_CONTEXT).as_mut().unwrap() };
+    fn register_font(&mut self, mut source: FontRegisterSource) -> anyhow::Result<()> {
+        if source.entries.is_empty() {
+            return Ok(());
+        }
 
-        let font = ctx.fonts().add_font(sources);
+        let mut font_data_list = vec![];
+        for entry in source.entries.iter() {
+            let data = std::fs::read(&entry.data_source).context("Failed to read font file")?;
+            font_data_list.push(data);
+        }
 
-        self.fonts.insert(sources_name.to_string(), font);
+        let ctx = Self::get_context();
+        let sources = source
+            .entries
+            .iter()
+            .zip(font_data_list.iter())
+            .map(|(entry, data)| FontSource::TtfData {
+                data,
+                size_pixels: entry.config.as_ref().map(|c| c.size_pixels).unwrap_or(0.0),
+                config: entry.config.clone(),
+            })
+            .collect::<Vec<_>>();
+        let font_id = ctx.fonts().add_font(&sources);
+        source.id = Some(font_id);
+
+        self.fonts.insert(source.name.clone(), source);
+        Ok(())
     }
 
     /// 注册默认字体
     fn register_default_fonts(&mut self) -> anyhow::Result<()> {
-        let font_file = std::fs::read("lua_framework/fonts/SourceHanSansCN-Regular.otf")
-            .context("Failed to read font file")?;
+        let font_size = self.get_font_size();
 
-        self.register_font(
-            Self::DEFAULT_FONT_NAME,
-            &[FontSource::TtfData {
-                data: &font_file,
-                size_pixels: 20.0,
+        self.register_font(FontRegisterSource {
+            name: Self::DEFAULT_FONT_NAME.to_string(),
+            entries: vec![FontRegisterEntry {
+                data_source: PathBuf::from("lua_framework/fonts/SourceHanSansCN-Regular.otf"),
                 config: Some(FontConfig {
-                    size_pixels: 20.0,
+                    size_pixels: font_size,
                     glyph_ranges: FontGlyphRanges::chinese_full(),
                     name: Some(Self::DEFAULT_FONT_NAME.to_string()),
                     ..FontConfig::default()
                 }),
             }],
-        );
+            id: None,
+        })?;
 
         Ok(())
     }
+
+    /// 读取字体大小，如果没有配置则使用默认字体大小
+    fn get_font_size(&self) -> f32 {
+        let mut font_size = Config::global().ui.font_size;
+        if font_size <= 0.0 {
+            let default_font_size = Self::calc_default_font_size(self.viewport_size);
+            Config::global_mut().ui.font_size = default_font_size;
+            font_size = default_font_size;
+        }
+
+        font_size
+    }
+
+    fn calc_default_font_size(viewport: Size) -> f32 {
+        let scale = viewport.h as f32 / Self::STD_VIEWPORT_SIZE;
+        (Self::STD_FONT_SIZE * scale).floor()
+    }
+}
+
+#[derive(Debug, Clone)]
+struct FontRegisterSource {
+    pub name: String,
+    pub entries: Vec<FontRegisterEntry>,
+    pub id: Option<FontId>,
+}
+
+#[derive(Debug, Clone)]
+struct FontRegisterEntry {
+    pub data_source: PathBuf,
+    pub config: Option<FontConfig>,
 }
 
 pub unsafe extern "C" fn imgui_core_initialize(
@@ -158,6 +217,17 @@ pub unsafe extern "C" fn imgui_core_initialize(
 
     let render_manager = RenderManager::get_mut();
 
+    // 设置d3d模式
+    render_manager.is_d3d12 = d3d12;
+
+    // 设置窗口大小
+    render_manager.mouse_scale = Vec2::new(
+        viewport_size.w as f32 / window_size.w as f32,
+        viewport_size.h as f32 / window_size.h as f32,
+    );
+    render_manager.viewport_size = viewport_size;
+    render_manager.window_size = window_size;
+
     // 设置字体
     if let Err(e) = render_manager.register_default_fonts() {
         error!(
@@ -172,16 +242,6 @@ pub unsafe extern "C" fn imgui_core_initialize(
     } else if menu_key != 0 {
         warn!("Invalid menu key code: {}", menu_key);
     }
-    // 设置窗口大小
-    render_manager.mouse_scale = Vec2::new(
-        viewport_size.w as f32 / window_size.w as f32,
-        viewport_size.h as f32 / window_size.h as f32,
-    );
-    render_manager.viewport_size = viewport_size;
-    render_manager.window_size = window_size;
-
-    // 设置d3d模式
-    render_manager.is_d3d12 = d3d12;
 
     debug!(
         "Initialize imgui render with viewport size: {:?}, window size: {:?}, d3d12: {}, menu key: {}", 
@@ -192,6 +252,29 @@ pub unsafe extern "C" fn imgui_core_initialize(
     );
 
     imgui_sys::igGetCurrentContext()
+}
+
+pub unsafe extern "C" fn imgui_core_pre_render() {
+    let render_manager = RenderManager::get_mut();
+
+    // 处理字体重载
+    if render_manager.need_reload_fonts {
+        render_manager.need_reload_fonts = false;
+        render_manager.need_invalidate_devices = true;
+        debug!("Reloading fonts");
+        if let Err(e) = render_manager.do_reload_fonts() {
+            error!("Failed to reload fonts: {}", e);
+        }
+        debug!("Fonts reloaded");
+    };
+
+    if render_manager.need_invalidate_devices {
+        render_manager.need_invalidate_devices = false;
+        if let Some(invalidate_device) = get_invalidate_device_fn() {
+            invalidate_device();
+            debug!("Device objects invalidated");
+        }
+    }
 }
 
 pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
@@ -206,6 +289,7 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
     };
 
     let ctx = static_mut!(IMGUI_CONTEXT).as_mut().unwrap();
+    // Frame start
     let ui = ctx.new_frame();
 
     // 处理指针显示
@@ -217,14 +301,14 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         io.mouse_draw_cursor = any_focusing || any_hovering;
     }
 
-    // 设置默认字体
-    let mut has_default_font = false;
-    if let Some(fontid) = render_manager.get_font(RenderManager::DEFAULT_FONT_NAME) {
-        imgui_sys::igPushFont(fontid.0 as *mut imgui_sys::ImFont);
-        has_default_font = true;
-    }
-
     if render_manager.show {
+        // 设置默认字体
+        let mut has_default_font = false;
+        if let Some(font_id) = render_manager.get_font(RenderManager::DEFAULT_FONT_NAME) {
+            imgui_sys::igPushFont(font_id.0 as *mut imgui_sys::ImFont);
+            has_default_font = true;
+        }
+
         // 基础窗口
         draw::draw_basic_window(ui, |_ui| {
             // 调用外部渲染函数 on_imgui
@@ -234,7 +318,7 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
         if has_default_font {
             imgui_sys::igPopFont();
         }
-    }
+    };
 
     // 调用外部渲染函数 on_draw
     let ctx_ptr = imgui_sys::igGetCurrentContext();
@@ -244,6 +328,18 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
 
     // 渲染并返回绘制数据
     ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData
+}
+
+fn get_invalidate_device_fn() -> Option<InvalidateDeviceFn> {
+    unsafe {
+        let fun = static_ref!(INVALIDATE_DEVICE_FN).get_or_init(|| {
+            CoreAPI::instance()
+                .get_function("RenderCore::InvalidateDeviceObjects")
+                .map(|f| std::mem::transmute(f))
+        });
+
+        *fun
+    }
 }
 
 #[repr(C)]
