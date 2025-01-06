@@ -17,6 +17,8 @@ pub enum Error {
     #[error("Mid hook error: {0}")]
     MidHook(#[from] safetyhook::mid_hook::MidError),
 
+    #[error("Config error: {0}")]
+    Config(#[from] crate::config::Error),
     #[error("Memory module error: {0}")]
     Memory(#[from] crate::memory::MemoryError),
 

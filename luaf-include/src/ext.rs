@@ -1,3 +1,4 @@
+use serde::{Deserialize, Serialize};
 use std::ffi::c_void;
 
 pub type OnLuaStateCreatedCb = unsafe extern "C" fn(lua_state: *mut c_void);
@@ -47,6 +48,7 @@ pub struct CoreAPIInput {
 }
 
 #[repr(i32)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LogLevel {
     Trace = 0,
     Debug = 1,

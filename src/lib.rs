@@ -9,6 +9,7 @@ static MAIN_THREAD_ONCE: Once = Once::new();
 
 mod address;
 mod bootstrap;
+mod config;
 mod error;
 mod extension;
 mod game;
