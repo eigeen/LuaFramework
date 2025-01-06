@@ -1,5 +1,7 @@
 use std::sync::atomic::{self, AtomicBool};
 
+use crate::config::Config;
+use crate::error::Error;
 use colored::Colorize;
 use log::{Metadata, Record};
 use parking_lot::Mutex;
@@ -11,8 +13,6 @@ use windows::Win32::{
         STD_OUTPUT_HANDLE,
     },
 };
-
-use crate::error::Error;
 
 static LOGGER_INITIALIZED: AtomicBool = AtomicBool::new(false);
 
@@ -94,7 +94,7 @@ pub fn init_logger() -> Result<(), Error> {
     let logger = Logger::new(stdout_handle);
 
     log::set_boxed_logger(Box::new(logger)).unwrap();
-    log::set_max_level(log::LevelFilter::Debug);
+    log::set_max_level(Config::global().log.level.into());
 
     LOGGER_INITIALIZED.store(true, atomic::Ordering::SeqCst);
 

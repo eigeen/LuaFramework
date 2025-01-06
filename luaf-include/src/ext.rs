@@ -56,3 +56,30 @@ pub enum LogLevel {
     Warn = 3,
     Error = 4,
 }
+
+#[cfg(feature = "log")]
+impl From<LogLevel> for log::LevelFilter {
+    fn from(value: LogLevel) -> Self {
+        match value {
+            LogLevel::Trace => log::LevelFilter::Trace,
+            LogLevel::Debug => log::LevelFilter::Debug,
+            LogLevel::Info => log::LevelFilter::Info,
+            LogLevel::Warn => log::LevelFilter::Warn,
+            LogLevel::Error => log::LevelFilter::Error,
+        }
+    }
+}
+
+#[cfg(feature = "log")]
+impl From<log::LevelFilter> for LogLevel {
+    fn from(value: log::LevelFilter) -> Self {
+        match value {
+            log::LevelFilter::Trace => LogLevel::Trace,
+            log::LevelFilter::Debug => LogLevel::Debug,
+            log::LevelFilter::Info => LogLevel::Info,
+            log::LevelFilter::Warn => LogLevel::Warn,
+            log::LevelFilter::Error => LogLevel::Error,
+            log::LevelFilter::Off => LogLevel::Error,
+        }
+    }
+}

@@ -23,7 +23,7 @@ rand = "0.8"
 crate-type = ["cdylib"]
 
 [dependencies]
-luaf-include = { path = "./luaf-include" }
+luaf-include = { path = "./luaf-include", features = ["log"] }
 
 mlua = { workspace = true, features = ["send", "serialize"] }
 
