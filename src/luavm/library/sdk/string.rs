@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::error::{Error, Result};
 use crate::luavm::library::LuaModule;
+use crate::memory::MemoryUtils;
 
 use super::luaptr::LuaPtr;
 
@@ -35,6 +36,7 @@ impl LuaModule for StringModule {
             "from_ptr",
             lua.create_function(|_lua, ptr: LuaPtr| {
                 let ptr_val = ptr.to_usize();
+                MemoryUtils::check_permission_read(ptr_val).map_err(|e| e.into_lua_err())?;
                 // 尝试解析C字符串
                 let cstr = unsafe { CStr::from_ptr(ptr_val as *const i8) };
 
