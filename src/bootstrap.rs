@@ -37,8 +37,6 @@ pub fn setup() -> Result<(), Error> {
         }
 
         ON_POST_MH_MAIN_CTOR_CALLBACK = Some(Box::new(|| {
-            // 加载配置
-            crate::config::Config::initialize()?;
             // 处理单例
             crate::game::singleton::SingletonManager::instance().parse_singletons();
             // 初始化输入

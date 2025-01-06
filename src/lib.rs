@@ -31,6 +31,10 @@ fn panic_hook(info: &std::panic::PanicHookInfo) {
 
 fn main_entry() -> anyhow::Result<()> {
     std::panic::set_hook(Box::new(panic_hook));
+
+    // 加载配置
+    config::Config::initialize()?;
+
     if let Err(e) = logger::init_logger() {
         utility::show_error_msgbox(
             &format!("Failed to initialize logger: {:#}", e),
@@ -40,6 +44,9 @@ fn main_entry() -> anyhow::Result<()> {
 
     // 初始化hook等资源
     game::command::init_game_command()?;
+    if let Err(e) = game::monster::init_hooks() {
+        log::error!("Failed to initialize monster hooks: {:#}", e);
+    };
     game::singleton::SingletonManager::instance().initialize()?;
     utility::add_dll_directory("lua_framework/bin")?;
 

@@ -2,6 +2,7 @@ use std::ffi::CString;
 
 use super::LuaModule;
 
+use crate::config::Config;
 use cimgui::sys::traits::Zero;
 use mlua::prelude::*;
 
@@ -206,6 +207,10 @@ impl LuaUserData for LuaImgui {
         methods.add_function("tree_pop", |_, ()| unsafe {
             cimgui::sys::igTreePop();
             Ok(())
+        });
+
+        methods.add_function("get_default_font_size", |_, ()| {
+            Ok(Config::global().ui.font_size)
         });
     }
 }

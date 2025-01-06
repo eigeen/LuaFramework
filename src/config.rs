@@ -81,7 +81,12 @@ impl Default for Config {
 impl Config {
     pub fn initialize() -> Result<(), Error> {
         let config = load_config()?;
-        config.save_global();
+        if let Err(e) = config.try_save_global() {
+            crate::utility::show_error_msgbox(
+                &format!("Failed to save global config: {}", e),
+                "Lua Framework",
+            );
+        };
         *GLOBAL_CONFIG.lock() = config;
         Ok(())
     }
@@ -99,12 +104,6 @@ impl Config {
     pub fn try_save_global(&self) -> Result<(), Error> {
         std::fs::write(CONFIG_FILE_PATH, toml::to_string(&self)?).map_err(Error::WriteConfig)?;
         Ok(())
-    }
-
-    pub fn save_global(&self) {
-        if let Err(e) = self.try_save_global() {
-            log::error!("Failed to save global config: {}", e);
-        }
     }
 }
 
