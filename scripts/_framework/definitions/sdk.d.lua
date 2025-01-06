@@ -5,6 +5,7 @@
 ---@field Memory Memory
 ---@field AddressRepository AddressRepository
 ---@field Interceptor Interceptor
+---@field Monster Monster
 ---@field call_native_function fun()
 local _ = _
 
@@ -94,3 +95,7 @@ local Input = {
 ---@field attach fun()
 ---@field attach_instruction fun()
 ---@field detach fun()
+
+---@class Monster
+---@field list fun(): table<integer, integer>
+---@field contains fun(ptr:AsLuaPtr): boolean

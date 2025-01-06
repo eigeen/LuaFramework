@@ -9,6 +9,7 @@ pub mod frida;
 pub mod input;
 pub mod luaptr;
 pub mod memory;
+pub mod monster;
 pub mod shared_state;
 pub mod string;
 
@@ -35,20 +36,15 @@ impl LuaModule for SdkModule {
                 lua.to_value(&singletons)
             })?,
         )?;
-        // input子模块
-        input::InputModule::register_library(lua, &sdk_table)?;
-        // memory子模块
+        // 子模块注册
+        input::InputModule::register_library(lua, &sdk_table)?; // memory子模块
         memory::MemoryModule::register_library(lua, &sdk_table)?;
-        // 注册luaptr到sdk模块
         luaptr::LuaPtr::register_library(lua, &sdk_table)?;
-        // string子模块
         string::StringModule::register_library(lua, &sdk_table)?;
-        // shared_state子模块
         shared_state::ShardStateModule::register_library(lua, &sdk_table)?;
-        // frida子模块
         frida::FridaModule::register_library(lua, &sdk_table)?;
-        // ffi_call子模块
         ffi_call::FFICallModule::register_library(lua, &sdk_table)?;
+        monster::MonsterModule::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())

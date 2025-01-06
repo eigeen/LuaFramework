@@ -101,6 +101,13 @@ impl AddressRepository {
             "44 89 ?? ?? ?? ?? ?? 44 88 00 4C 89 ?? ?? ?? ?? ?? 4C 89 ?? ?? ?? ?? ?? 44 89",
             -26,
         );
+        Self::set_record_inner(&mut inner, Self::MONSTER_CTOR, "4C 89 B3 10 76 00 00", -60);
+        Self::set_record_inner(
+            &mut inner,
+            Self::MONSTER_DTOR,
+            "48 83 EC 20 48 8B B9 A0 09 00 00",
+            -20,
+        );
         Self::set_record_inner(
             &mut inner,
             "GUITitle:Play",
@@ -129,4 +136,6 @@ impl AddressRepository {
     pub const CORE_MAP_CLOCK_LOCAL: &str = "Core::MapClockLocal";
     pub const C_SYSTEM_CTOR: &str = "cSystem:Ctor";
     pub const CHAT_MESSAGE_SENT: &str = "Chat:MessageSent";
+    pub const MONSTER_CTOR: &str = "Monster:Ctor";
+    pub const MONSTER_DTOR: &str = "Monster:Dtor";
 }
