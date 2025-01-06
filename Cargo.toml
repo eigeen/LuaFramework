@@ -9,15 +9,15 @@ edition = "2021"
 resolver = "2"
 members = ["luaf-include", "luaf-libffi"]
 
-    [workspace.dependencies]
-    mlua = { version = "0.10", features = ["luajit", "vendored"] }
-    log = { version = "0.4", features = ["std"] }
-    anyhow = "1.0"
-    thiserror = "2.0"
-    parking_lot = { version = "0.12", features = ["arc_lock"] }
-    serde = { version = "1.0", features = ["derive"] }
-    serde_json = "1.0"
-    rand = "0.8"
+[workspace.dependencies]
+mlua = { version = "0.10", features = ["luajit", "vendored"] }
+log = { version = "0.4", features = ["std"] }
+anyhow = "1.0"
+thiserror = "2.0"
+parking_lot = { version = "0.12", features = ["arc_lock"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+rand = "0.8"
 
 [lib]
 crate-type = ["cdylib"]
@@ -61,6 +61,7 @@ bitflags = "2.6"
 semver = "1.0"
 chrono = "0.4"
 colored = "2.2"
+strum = "0.26.3"
 
 [build-dependencies]
 winres = "0.1"

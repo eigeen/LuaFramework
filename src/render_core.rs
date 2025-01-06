@@ -36,8 +36,7 @@ pub struct RenderManager {
     mouse_scale: Vec2,
     /// 已注册的字体
     fonts: HashMap<String, FontRegisterSource>,
-    need_reload_fonts: bool,
-    need_invalidate_devices: bool,
+    ui_context: UIContext,
 }
 
 impl RenderManager {
@@ -48,14 +47,13 @@ impl RenderManager {
     fn new() -> Self {
         Self {
             is_d3d12: false,
-            menu_key: KeyCode::F7,
+            menu_key: Config::global().ui.menu_key,
             show: true,
             window_size: Size::default(),
             viewport_size: Size::default(),
             mouse_scale: Vec2::new(1.0, 1.0),
             fonts: HashMap::new(),
-            need_reload_fonts: false,
-            need_invalidate_devices: false,
+            ui_context: UIContext::default(),
         }
     }
 
@@ -82,6 +80,10 @@ impl RenderManager {
         unsafe { static_mut!(IMGUI_CONTEXT).as_mut().unwrap() }
     }
 
+    pub fn ui_context_mut(&mut self) -> &mut UIContext {
+        &mut self.ui_context
+    }
+
     /// 渲染回调
     pub fn render_imgui(&self) {
         // Lua回调函数 on_imgui
@@ -105,7 +107,7 @@ impl RenderManager {
     ///
     /// 此操作仅登记请求，操作会在下一帧生效
     pub fn reload_fonts(&mut self) {
-        self.need_reload_fonts = true;
+        self.ui_context_mut().need_reload_fonts = true;
     }
 
     fn do_reload_fonts(&mut self) -> anyhow::Result<()> {
@@ -203,11 +205,26 @@ struct FontRegisterEntry {
     pub config: Option<FontConfig>,
 }
 
+pub struct UIContext {
+    pub need_reload_fonts: bool,
+    pub need_invalidate_devices: bool,
+    pub change_menu_key: bool,
+}
+
+impl Default for UIContext {
+    fn default() -> Self {
+        Self {
+            need_reload_fonts: false,
+            need_invalidate_devices: false,
+            change_menu_key: false,
+        }
+    }
+}
+
 pub unsafe extern "C" fn imgui_core_initialize(
     viewport_size: Size,
     window_size: Size,
     d3d12: bool,
-    menu_key: u32,
 ) -> *mut imgui_sys::ImGuiContext {
     // 创建 Context
     let context = static_mut!(IMGUI_CONTEXT);
@@ -236,19 +253,9 @@ pub unsafe extern "C" fn imgui_core_initialize(
         );
     };
 
-    // 设置按键
-    if let Some(key) = KeyCode::from_repr(menu_key) {
-        render_manager.menu_key = key;
-    } else if menu_key != 0 {
-        warn!("Invalid menu key code: {}", menu_key);
-    }
-
     debug!(
-        "Initialize imgui render with viewport size: {:?}, window size: {:?}, d3d12: {}, menu key: {}", 
-        render_manager.viewport_size,
-        render_manager.window_size,
-        d3d12,
-        menu_key
+        "Initialize imgui render with viewport size: {:?}, window size: {:?}, d3d12: {}",
+        render_manager.viewport_size, render_manager.window_size, d3d12,
     );
 
     imgui_sys::igGetCurrentContext()
@@ -256,20 +263,21 @@ pub unsafe extern "C" fn imgui_core_initialize(
 
 pub unsafe extern "C" fn imgui_core_pre_render() {
     let render_manager = RenderManager::get_mut();
+    let ui_context = render_manager.ui_context_mut();
 
     // 处理字体重载
-    if render_manager.need_reload_fonts {
-        render_manager.need_reload_fonts = false;
-        render_manager.need_invalidate_devices = true;
+    if ui_context.need_reload_fonts {
+        ui_context.need_reload_fonts = false;
+        ui_context.need_invalidate_devices = true;
         debug!("Reloading fonts");
-        if let Err(e) = render_manager.do_reload_fonts() {
+        if let Err(e) = RenderManager::get_mut().do_reload_fonts() {
             error!("Failed to reload fonts: {}", e);
         }
         debug!("Fonts reloaded");
     };
 
-    if render_manager.need_invalidate_devices {
-        render_manager.need_invalidate_devices = false;
+    if ui_context.need_invalidate_devices {
+        ui_context.need_invalidate_devices = false;
         if let Some(invalidate_device) = get_invalidate_device_fn() {
             invalidate_device();
             debug!("Device objects invalidated");
@@ -281,9 +289,10 @@ pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
     let render_manager = RenderManager::get_mut();
 
     // 处理快捷键显示切换
-    if Input::instance()
-        .keyboard()
-        .is_pressed(render_manager.menu_key)
+    if !render_manager.ui_context.change_menu_key
+        && Input::instance()
+            .keyboard()
+            .is_pressed(render_manager.menu_key)
     {
         render_manager.show = !render_manager.show;
     };

@@ -29,7 +29,7 @@ pub struct LogConfig {
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            level: luaf_include::LogLevel::Info,
+            level: default_log_level(),
         }
     }
 }
@@ -38,15 +38,24 @@ fn default_log_level() -> luaf_include::LogLevel {
     luaf_include::LogLevel::Info
 }
 
+fn default_menu_key() -> luaf_include::KeyCode {
+    luaf_include::KeyCode::F7
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct UIConfig {
     #[serde(default)]
     pub font_size: f32,
+    #[serde(default = "default_menu_key")]
+    pub menu_key: luaf_include::KeyCode,
 }
 
 impl Default for UIConfig {
     fn default() -> Self {
-        Self { font_size: 0.0 }
+        Self {
+            font_size: 0.0,
+            menu_key: default_menu_key(),
+        }
     }
 }
 

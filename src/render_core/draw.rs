@@ -1,10 +1,12 @@
 use std::collections::HashMap;
 
-use crate::config::Config;
-use crate::luavm::LuaVMManager;
 use cimgui::TreeNodeFlags;
+use strum::IntoEnumIterator;
 
 use super::RenderManager;
+use crate::config::Config;
+use crate::input::Input;
+use crate::luavm::LuaVMManager;
 
 pub fn draw_basic_window<F>(ui: &cimgui::Ui, script_ui_draw: F)
 where
@@ -32,6 +34,7 @@ pub fn draw_options_tab(ui: &cimgui::Ui) {
         return;
     };
 
+    // Font Size
     let mut font_size = Config::global().ui.font_size;
     ui.text("Font Size");
     ui.same_line_with_spacing(0.0, 5.0);
@@ -60,6 +63,36 @@ pub fn draw_options_tab(ui: &cimgui::Ui) {
             }
         }
     };
+
+    // Menu Key
+    let render_manager = RenderManager::get_mut();
+    let menu_key = render_manager.menu_key;
+    let button_label = if render_manager.ui_context_mut().change_menu_key {
+        "Press any key..."
+    } else {
+        menu_key.into()
+    };
+
+    ui.text("Menu Key");
+    ui.same_line_with_spacing(0.0, 5.0);
+    {
+        let _width_guard = ui.push_item_width(font_size * 3.0);
+        if ui.button(button_label) {
+            let change_signal = render_manager.ui_context_mut().change_menu_key;
+            render_manager.ui_context_mut().change_menu_key = !change_signal;
+        }
+    }
+
+    if render_manager.ui_context_mut().change_menu_key {
+        for key in luaf_include::KeyCode::iter() {
+            if Input::instance().keyboard().is_pressed(key) {
+                render_manager.ui_context_mut().change_menu_key = false;
+                render_manager.menu_key = key;
+                Config::global_mut().ui.menu_key = key;
+                break;
+            }
+        }
+    }
 }
 
 fn draw_script_manager_tab(ui: &cimgui::Ui) {

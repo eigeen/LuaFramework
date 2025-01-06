@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum::FromRepr;
+use strum::{EnumIter, FromRepr, IntoEnumIterator, IntoStaticStr};
 
 use crate::CoreAPIInput;
 
@@ -33,7 +33,19 @@ pub enum ControllerButton {
 }
 
 #[repr(u32)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, FromRepr)]
+#[derive(
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Serialize,
+    Deserialize,
+    FromRepr,
+    EnumIter,
+    IntoStaticStr,
+)]
 pub enum KeyCode {
     Escape = 1,
     D1 = 2,

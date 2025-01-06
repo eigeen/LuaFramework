@@ -998,6 +998,7 @@ dependencies = [
  "semver",
  "serde",
  "serde_json",
+ "strum",
  "thiserror 2.0.9",
  "toml 0.8.19",
  "windows",
