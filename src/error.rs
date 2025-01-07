@@ -42,6 +42,8 @@ pub enum Error {
     PatchAlreadyExists(usize),
     #[error("Path not allowed: {0}")]
     PathNotAllowed(String),
+    #[error("Proc address '{0}' not found")]
+    ProcAddressNotFound(String),
 }
 
 #[derive(Debug, Clone)]

@@ -9,6 +9,7 @@ pub mod frida;
 pub mod input;
 pub mod luaptr;
 pub mod memory;
+pub mod module;
 pub mod monster;
 pub mod shared_state;
 pub mod string;
@@ -18,6 +19,17 @@ pub struct SdkModule;
 impl LuaModule for SdkModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
         let sdk_table = lua.create_table()?;
+        // 子模块注册
+        input::InputModule::register_library(lua, &sdk_table)?; // memory子模块
+        memory::MemoryModule::register_library(lua, &sdk_table)?;
+        luaptr::LuaPtr::register_library(lua, &sdk_table)?;
+        string::StringModule::register_library(lua, &sdk_table)?;
+        shared_state::ShardStateModule::register_library(lua, &sdk_table)?;
+        frida::FridaModule::register_library(lua, &sdk_table)?;
+        ffi_call::FFICallModule::register_library(lua, &sdk_table)?;
+        monster::MonsterModule::register_library(lua, &sdk_table)?;
+        module::ModuleMod::register_library(lua, &sdk_table)?;
+
         // 获取单例
         sdk_table.set(
             "get_singleton",
@@ -36,15 +48,6 @@ impl LuaModule for SdkModule {
                 lua.to_value(&singletons)
             })?,
         )?;
-        // 子模块注册
-        input::InputModule::register_library(lua, &sdk_table)?; // memory子模块
-        memory::MemoryModule::register_library(lua, &sdk_table)?;
-        luaptr::LuaPtr::register_library(lua, &sdk_table)?;
-        string::StringModule::register_library(lua, &sdk_table)?;
-        shared_state::ShardStateModule::register_library(lua, &sdk_table)?;
-        frida::FridaModule::register_library(lua, &sdk_table)?;
-        ffi_call::FFICallModule::register_library(lua, &sdk_table)?;
-        monster::MonsterModule::register_library(lua, &sdk_table)?;
 
         registry.set("sdk", sdk_table)?;
         Ok(())

@@ -20,7 +20,7 @@ use super::{luaptr::LuaPtr, string::ManagedString};
 
 pub struct FFICallModule;
 
-static mut CALL_C_FUNCTION: Option<CallCFunction> = None;
+static mut CALL_NATIVE_FUNCTION: Option<CallNativeFunction> = None;
 
 impl LuaModule for FFICallModule {
     fn register_library(lua: &mlua::Lua, registry: &mlua::Table) -> mlua::Result<()> {
@@ -33,7 +33,7 @@ impl LuaModule for FFICallModule {
 
         registry.set(
             "call_native_function",
-            lua.create_function(lua_call_c_function)?,
+            lua.create_function(lua_call_native_function)?,
         )?;
 
         Ok(())
@@ -42,7 +42,7 @@ impl LuaModule for FFICallModule {
 
 fn acquire_ffi_functions() {
     unsafe {
-        let fun = static_mut!(CALL_C_FUNCTION);
+        let fun = static_mut!(CALL_NATIVE_FUNCTION);
         if fun.is_none() {
             if let Some(call_c_function) =
                 CoreAPI::instance().get_function("libffi::call_c_function")
@@ -53,9 +53,9 @@ fn acquire_ffi_functions() {
     }
 }
 
-fn lua_call_c_function(
+fn lua_call_native_function(
     _lua: &Lua,
-    (fun_arg, args, ret_type_name, is_safe): (
+    (fun_arg, args, ret_type_name, use_system_abi): (
         LuaValue,
         Vec<Argument>,
         Option<String>,
@@ -65,10 +65,17 @@ fn lua_call_c_function(
     // 读取长整型
     let fun = lua_parse_long_integer(&fun_arg)?;
     // 判断权限
-    let is_safe = is_safe.unwrap_or(true);
-    if is_safe {
-        MemoryUtils::check_permission_execute(fun as usize).map_err(|e| e.into_lua_err())?;
-    }
+    MemoryUtils::check_permission_execute(fun as usize).map_err(|e| e.into_lua_err())?;
+    // 解析 ABI
+    const FFI_DEFAULT_ABI: u32 = 2;
+    const FFI_WIN64_ABI: u32 = 1;
+
+    let use_system_abi = use_system_abi.unwrap_or(false);
+    let abi = if use_system_abi {
+        FFI_WIN64_ABI
+    } else {
+        FFI_DEFAULT_ABI
+    };
 
     // 解析返回值类型
     let ret_type = ret_type_name.and_then(|name| {
@@ -80,7 +87,7 @@ fn lua_call_c_function(
         }
     });
 
-    let call_c_function = unsafe { CALL_C_FUNCTION.unwrap() };
+    let call_c_function = unsafe { CALL_NATIVE_FUNCTION.unwrap() };
 
     // 转换参数
     let mut ffi_args = args
@@ -115,6 +122,7 @@ fn lua_call_c_function(
                 ffi_arg_values.len(),
                 FFIArgType::Void as i32,
                 &mut ret_val as *mut *mut c_void,
+                abi,
             );
         }
         return Ok(LuaNil);
@@ -133,6 +141,7 @@ fn lua_call_c_function(
             ffi_arg_values.len(),
             ffi_ret_type as i32,
             &mut ret_val as *mut *mut c_void,
+            abi,
         );
     }
 
@@ -183,7 +192,7 @@ fn lua_parse_long_integer(value: &LuaValue) -> LuaResult<u64> {
 
 type AnyVar = *mut c_void;
 
-type CallCFunction = unsafe extern "C" fn(
+type CallNativeFunction = unsafe extern "C" fn(
     ptr: *mut c_void,
     arg_types: *mut AnyVar,
     arg_types_len: usize,
@@ -191,6 +200,7 @@ type CallCFunction = unsafe extern "C" fn(
     args_len: usize,
     ret_type: i32,
     ret_val: *mut AnyVar,
+    abi: u32,
 ) -> i32;
 
 struct FFIArg {

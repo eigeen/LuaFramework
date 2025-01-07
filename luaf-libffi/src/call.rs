@@ -1,6 +1,5 @@
+use libffi::high::FfiAbi;
 use std::{ffi::c_void, ptr::addr_of_mut};
-
-use libffi::raw::ffi_abi_FFI_DEFAULT_ABI;
 use strum::FromRepr;
 
 type AnyVar = *mut c_void;
@@ -82,7 +81,7 @@ impl ArgType {
 
 #[no_mangle]
 #[allow(non_snake_case)]
-pub unsafe extern "C" fn CallCFunction(
+pub unsafe extern "C" fn CallNativeFunction(
     ptr: *mut c_void,
     arg_types: *mut AnyVar,
     arg_types_len: usize,
@@ -90,6 +89,7 @@ pub unsafe extern "C" fn CallCFunction(
     args_len: usize,
     ret_type: i32,
     ret_val: *mut AnyVar,
+    abi: FfiAbi,
 ) -> i32 {
     // 检查参数数量
     if arg_types_len != args_len {
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn CallCFunction(
 
     let result = libffi::low::prep_cif(
         &mut cif,
-        ffi_abi_FFI_DEFAULT_ABI,
+        abi,
         ffi_arg_types.len(),
         ffi_ret_type.as_ffi_type(),
         ffi_arg_types.as_mut_ptr(),
@@ -169,6 +169,7 @@ pub unsafe extern "C" fn CallCFunction(
 #[allow(clippy::transmute_int_to_float)]
 mod tests {
     use super::*;
+    use libffi::raw::{ffi_abi_FFI_GNUW64, ffi_abi_FFI_WIN64};
 
     fn init_logging() {
         env_logger::builder()
@@ -183,6 +184,11 @@ mod tests {
 
     #[inline(never)]
     extern "C" fn test_float_add(a: f32, b: f32) -> f32 {
+        a + b
+    }
+
+    #[inline(never)]
+    extern "system" fn test_add_sys(a: i32, b: i32) -> i32 {
         a + b
     }
 
@@ -204,7 +210,7 @@ mod tests {
             let ret_type = ArgType::Sint32 as i32;
             let mut ret_val = std::ptr::null_mut::<c_void>();
 
-            let code = CallCFunction(
+            let code = CallNativeFunction(
                 ptr,
                 arg_types.as_mut_ptr(),
                 arg_types_len,
@@ -212,6 +218,44 @@ mod tests {
                 args_len,
                 ret_type,
                 &mut ret_val as *mut *mut c_void,
+                ffi_abi_FFI_GNUW64,
+            );
+
+            eprintln!("code: {}", code);
+            eprintln!("ret_val: {}", ret_val as usize);
+
+            assert_eq!(code, 0);
+            assert_eq!(ret_val as i32, 3);
+        }
+    }
+
+    #[test]
+    fn test_call_system_function() {
+        init_logging();
+
+        type AnyVar = *mut c_void;
+
+        unsafe {
+            let ptr = test_add_sys as *mut c_void;
+            let mut arg_types = vec![
+                ArgType::Sint32 as i32 as AnyVar,
+                ArgType::Sint32 as i32 as AnyVar,
+            ];
+            let arg_types_len = arg_types.len();
+            let mut args = vec![1i32 as AnyVar, 2i32 as AnyVar];
+            let args_len = args.len();
+            let ret_type = ArgType::Sint32 as i32;
+            let mut ret_val = std::ptr::null_mut::<c_void>();
+
+            let code = CallNativeFunction(
+                ptr,
+                arg_types.as_mut_ptr(),
+                arg_types_len,
+                args.as_mut_ptr(),
+                args_len,
+                ret_type,
+                &mut ret_val as *mut *mut c_void,
+                ffi_abi_FFI_WIN64,
             );
 
             eprintln!("code: {}", code);
@@ -249,7 +293,7 @@ mod tests {
             let ret_type = ArgType::Float as i32;
             let mut ret_val = std::ptr::null_mut::<c_void>();
 
-            let code = CallCFunction(
+            let code = CallNativeFunction(
                 ptr,
                 arg_types.as_mut_ptr(),
                 arg_types_len,
@@ -257,6 +301,7 @@ mod tests {
                 args_len,
                 ret_type,
                 &mut ret_val as *mut *mut c_void,
+                ffi_abi_FFI_GNUW64,
             );
 
             eprintln!("code: {}", code);
