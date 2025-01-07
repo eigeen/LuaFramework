@@ -82,10 +82,7 @@ impl MemoryUtils {
             return Err(MemoryError::InvalidSize(size));
         }
         if safe {
-            let permission = Self::get_page_state(address)?;
-            if !permission.contains(MemoryState::READ) {
-                return Err(MemoryError::PagePermNoRead(address));
-            }
+            Self::check_permission_read(address)?;
         } else if Self::is_in_reserved_range(address) {
             return Err(MemoryError::PagePermNoRead(address));
         }
@@ -100,10 +97,7 @@ impl MemoryUtils {
             return Err(MemoryError::InvalidSize(size as usize));
         }
         if safe {
-            let permission = Self::get_page_state(address)?;
-            if !permission.contains(MemoryState::READ) {
-                return Err(MemoryError::PagePermNoRead(address));
-            }
+            Self::check_permission_read(address)?;
         } else if Self::is_in_reserved_range(address) {
             return Err(MemoryError::PagePermNoRead(address));
         }
@@ -171,7 +165,7 @@ impl MemoryUtils {
     pub fn check_permission_execute(address: usize) -> Result<(), MemoryError> {
         let state = Self::get_page_state(address)?;
         if !state.contains(MemoryState::EXECUTE) {
-            return Err(MemoryError::PagePermNoRead(address));
+            return Err(MemoryError::PagePermNoExecute(address));
         }
         Ok(())
     }

@@ -21,6 +21,7 @@ use windows::Win32::System::Memory::{
 use super::MemoryError;
 
 bitflags! {
+    #[derive(Debug)]
     pub struct MemoryState: u32 {
         const READ = 1;
         const WRITE = 1 << 1;
