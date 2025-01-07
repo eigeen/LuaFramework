@@ -67,6 +67,7 @@ pub enum Encoding {
 pub struct ManagedString {
     data: String,
     encoding: Encoding,
+    data_bytes: Vec<u8>,
 }
 
 impl LuaUserData for ManagedString {
@@ -100,6 +101,9 @@ impl LuaUserData for ManagedString {
             let bytes = this.to_bytes();
             Ok(lua.to_value(&bytes))
         });
+        methods.add_method_mut("as_ptr", |lua, this, ()| {
+            Ok(LuaPtr::new(this.as_ptr() as u64))
+        });
     }
 }
 
@@ -108,6 +112,7 @@ impl ManagedString {
         Self {
             data: data.to_string(),
             encoding,
+            data_bytes: vec![],
         }
     }
 
@@ -153,6 +158,14 @@ impl ManagedString {
                 .collect::<Vec<u8>>(),
         }
     }
+
+    pub fn as_ptr(&mut self) -> *const u8 {
+        if self.data_bytes.is_empty() {
+            self.data_bytes = self.to_bytes_with_nul();
+        }
+
+        self.data_bytes.as_ptr()
+    }
 }
 
 fn parse_lua_value_to_string(value: &LuaValue) -> Result<ManagedString> {
@@ -161,10 +174,7 @@ fn parse_lua_value_to_string(value: &LuaValue) -> Result<ManagedString> {
         LuaValue::UserData(ud) => {
             // 接受 ManagedString
             if let Ok(ms) = ud.borrow::<ManagedString>() {
-                Ok(ManagedString {
-                    data: ms.data.clone(),
-                    encoding: ms.encoding,
-                })
+                Ok(ManagedString::new(ms.data(), ms.encoding))
             } else {
                 Err(Error::InvalidValue(
                     "ManagedString or string",
