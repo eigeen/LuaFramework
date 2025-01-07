@@ -5,10 +5,11 @@ edition = "2021"
 
 [dependencies]
 log = { workspace = true, optional = true }
+mlua = { workspace = true, optional = true }
 serde.workspace = true
 strum.workspace = true
-
 
 [features]
 default = []
 logger = ["log"]
+lua = ["mlua"]

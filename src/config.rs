@@ -60,12 +60,28 @@ impl Default for UIConfig {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct ScriptsConfig {
+    #[serde(default)]
+    pub disabled_scripts: Vec<String>,
+}
+
+impl Default for ScriptsConfig {
+    fn default() -> Self {
+        Self {
+            disabled_scripts: vec![],
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Config {
     pub version: i32,
     #[serde(default)]
     pub log: LogConfig,
     #[serde(default)]
     pub ui: UIConfig,
+    #[serde(default)]
+    pub scripts: ScriptsConfig,
 }
 
 impl Default for Config {
@@ -74,6 +90,7 @@ impl Default for Config {
             version: 1,
             log: LogConfig::default(),
             ui: UIConfig::default(),
+            scripts: ScriptsConfig::default(),
         }
     }
 }

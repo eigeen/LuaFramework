@@ -1019,6 +1019,7 @@ name = "luaf-include"
 version = "0.1.0"
 dependencies = [
  "log",
+ "mlua",
  "serde",
  "strum",
 ]

@@ -10,6 +10,9 @@ pub use input::{ControllerButton, KeyCode};
 mod ext;
 pub use ext::*;
 
+#[cfg(feature = "lua")]
+pub use mlua;
+
 static mut INSTANCE: Option<API> = None;
 
 pub struct API {
@@ -106,6 +109,22 @@ impl CoreFunctions<'_> {
             pattern_bytes.len() as u32,
             offset,
         );
+    }
+
+    pub fn get_or_set_managed_address(
+        &self,
+        name: &str,
+        pattern: &str,
+        offset: i32,
+    ) -> Option<*const c_void> {
+        // try get
+        if let Some(address) = self.get_managed_address(name) {
+            return Some(address);
+        }
+        // set
+        self.set_managed_address(name, pattern, offset);
+        // try again
+        self.get_managed_address(name)
     }
 }
 
