@@ -8,10 +8,10 @@ use std::{
 use library::LuaModule;
 use mlua::prelude::*;
 
+use crate::config::Config;
+use crate::error::{Error, Result};
 use parking_lot::{Mutex, ReentrantMutex};
 use rand::RngCore;
-
-use crate::error::{Error, Result};
 
 mod library;
 
@@ -150,11 +150,20 @@ impl LuaVMManager {
             return Ok(Vec::new());
         }
 
+        // update disabled vms
+        {
+            let mut inner = self.inner.lock();
+            let mut inner_b = inner.borrow_mut();
+            for script in Config::global().scripts.disabled_scripts.iter() {
+                inner_b.disabled_vms.insert(script.clone());
+            }
+        }
+
         let abs_path = std::fs::canonicalize(&dir_path).unwrap_or_default();
         log::info!("Scanning script directory '{}'", abs_path.display());
 
         let mut vms = Vec::new();
-        for entry in std::fs::read_dir(&dir_path)? {
+        for entry in std::fs::read_dir(&abs_path)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
@@ -196,8 +205,13 @@ impl LuaVMManager {
     /// 重新加载所有虚拟机
     pub fn reload_physical_vms(&self) -> Result<()> {
         {
-            let inner = self.inner.lock();
-            inner.borrow_mut().remove_pyhsical_vms();
+            let mut inner = self.inner.lock();
+            let mut inner_b = inner.borrow_mut();
+            inner_b.remove_pyhsical_vms();
+            // store disabled vms
+            Config::global_mut().scripts.disabled_scripts =
+                inner_b.disabled_vms.iter().cloned().collect::<Vec<_>>();
+            inner_b.disabled_vms.clear();
         }
         // 移除共享状态
         library::sdk::shared_state::SharedState::instance().clear_states();
@@ -208,6 +222,7 @@ impl LuaVMManager {
         } else {
             self.auto_load_vms(Self::LUA_SCRIPTS_DIR)?;
         }
+
         Ok(())
     }
 
