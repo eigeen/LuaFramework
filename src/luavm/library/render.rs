@@ -120,6 +120,10 @@ impl LuaUserData for LuaImgui {
             cimgui::sys::igNewLine();
             Ok(())
         });
+        methods.add_function("separator", |_, ()| unsafe {
+            cimgui::sys::igSeparator();
+            Ok(())
+        });
         methods.add_function("begin_disabled", |_, disabled: Option<bool>| unsafe {
             let disabled = disabled.unwrap_or(true);
             cimgui::sys::igBeginDisabled(disabled);
@@ -310,6 +314,8 @@ impl IntoLua for ImVec4 {
         let table = lua.create_table()?;
         table.set(1, self.0.x)?;
         table.set(2, self.0.y)?;
+        table.set(3, self.0.z)?;
+        table.set(4, self.0.w)?;
         Ok(LuaValue::Table(table))
     }
 }

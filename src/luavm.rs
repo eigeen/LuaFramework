@@ -159,11 +159,13 @@ impl LuaVMManager {
             }
         }
 
-        let abs_path = std::fs::canonicalize(&dir_path).unwrap_or_default();
-        log::info!("Scanning script directory '{}'", abs_path.display());
+        {
+            let abs_path = std::fs::canonicalize(&dir_path).unwrap_or_default();
+            log::info!("Scanning script directory '{}'", abs_path.display());
+        }
 
         let mut vms = Vec::new();
-        for entry in std::fs::read_dir(&abs_path)? {
+        for entry in std::fs::read_dir(&dir_path)? {
             let entry = entry?;
             let path = entry.path();
             if path.is_dir() {
