@@ -48,7 +48,6 @@ fn main_entry() -> anyhow::Result<()> {
         log::error!("Failed to initialize monster hooks: {:#}", e);
     };
     game::singleton::SingletonManager::instance().initialize()?;
-    utility::add_dll_directory("lua_framework/bin")?;
 
     bootstrap::setup()?;
 
