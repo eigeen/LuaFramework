@@ -1,9 +1,9 @@
 import os
-import shutil
-import zipfile
 import re
-import sys
+import shutil
 import subprocess
+import sys
+import zipfile
 
 g_dev_mode = False
 
@@ -33,19 +33,27 @@ if os.path.exists("dist"):
 
 os.makedirs("dist")
 
-# run rust build command
+# run build command
+os.system("cd d3d11 && xmake build -y")
 os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 file_src_dst = [
+    # loader
     {
         "type": "file",
-        "src": "lib/cimgui.dll",
-        "dst": "cimgui.dll",
+        "src": "d3d11/build/windows/x64/release/d3d11.dll",
+        "dst": "d3d11.dll",
     },
+    # core files
     {
         "type": "file",
         "src": "target/release/lua_framework.dll",
-        "dst": "nativePC/plugins/lua_framework.dll",
+        "dst": "lua_framework.dll",
+    },
+    {
+        "type": "file",
+        "src": "lib/cimgui.dll",
+        "dst": "lua_framework/bin/cimgui.dll",
     },
     {
         "type": "file",
@@ -63,7 +71,6 @@ file_src_dst = [
         "src": "assets/SourceHanSansCN-Regular.otf",
         "dst": "lua_framework/fonts/SourceHanSansCN-Regular.otf",
     },
-    {"type": "create_dir", "dst": "lua_framework/bin"},
     # scripts
     {"type": "create_dir", "dst": "lua_framework/scripts"},
     {
