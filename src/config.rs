@@ -1,6 +1,6 @@
 use std::{path::Path, sync::LazyLock};
 
-use parking_lot::{Mutex, MutexGuard, RawMutex};
+use parking_lot::{Mutex, MutexGuard};
 use serde::{Deserialize, Serialize};
 
 const CONFIG_FILE_PATH: &str = "lua_framework/config.toml";

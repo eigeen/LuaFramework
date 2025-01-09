@@ -200,7 +200,7 @@ unsafe impl Sync for InlineLeaveArgs<'_> {}
 
 impl LuaUserData for InlineLeaveArgs<'_> {
     fn add_methods<M: LuaUserDataMethods<Self>>(methods: &mut M) {
-        methods.add_meta_method(LuaMetaMethod::Index, |lua, this, key: LuaValue| {
+        methods.add_meta_method(LuaMetaMethod::Index, |_lua, this, key: LuaValue| {
             let index_key: IndexKey = key.into();
 
             match index_key {
@@ -213,8 +213,7 @@ impl LuaUserData for InlineLeaveArgs<'_> {
                     match key.as_ref() {
                         "retval" => {
                             // 获取返回值
-                            let ptr = LuaPtr::new(this.context.return_value() as u64);
-                            Ok(ptr.into_lua(lua)?)
+                            Ok(LuaValue::Integer(this.context.return_value() as i64))
                         }
                         other => {
                             let value =

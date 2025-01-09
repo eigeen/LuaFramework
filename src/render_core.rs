@@ -6,12 +6,10 @@ use crate::{static_mut, static_ref};
 use anyhow::Context as _;
 use cimgui::{sys as imgui_sys, FontConfig, FontGlyphRanges, FontId, FontSource, Io};
 use cimgui::{Context, DrawData, WindowFocusedFlags, WindowHoveredFlags};
-use log::{debug, error, warn};
+use log::{debug, error};
 use luaf_include::KeyCode;
-use rand::RngCore;
 use std::cell::OnceCell;
 use std::collections::HashMap;
-use std::ffi::c_void;
 use std::path::PathBuf;
 
 mod draw;
@@ -193,14 +191,14 @@ impl RenderManager {
 }
 
 #[derive(Debug, Clone)]
-struct FontRegisterSource {
+pub struct FontRegisterSource {
     pub name: String,
     pub entries: Vec<FontRegisterEntry>,
     pub id: Option<FontId>,
 }
 
 #[derive(Debug, Clone)]
-struct FontRegisterEntry {
+pub struct FontRegisterEntry {
     pub data_source: PathBuf,
     pub config: Option<FontConfig>,
 }

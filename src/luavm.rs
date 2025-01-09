@@ -152,7 +152,7 @@ impl LuaVMManager {
 
         // update disabled vms
         {
-            let mut inner = self.inner.lock();
+            let inner = self.inner.lock();
             let mut inner_b = inner.borrow_mut();
             for script in Config::global().scripts.disabled_scripts.iter() {
                 inner_b.disabled_vms.insert(script.clone());
@@ -207,7 +207,7 @@ impl LuaVMManager {
     /// 重新加载所有虚拟机
     pub fn reload_physical_vms(&self) -> Result<()> {
         {
-            let mut inner = self.inner.lock();
+            let inner = self.inner.lock();
             let mut inner_b = inner.borrow_mut();
             inner_b.remove_pyhsical_vms();
             // store disabled vms

@@ -101,7 +101,7 @@ impl LuaUserData for ManagedString {
             let bytes = this.to_bytes();
             Ok(lua.to_value(&bytes))
         });
-        methods.add_method_mut("as_ptr", |lua, this, ()| {
+        methods.add_method_mut("as_ptr", |_, this, ()| {
             Ok(LuaPtr::new(this.as_ptr() as u64))
         });
     }

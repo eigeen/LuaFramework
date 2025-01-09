@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use strum::{EnumIter, FromRepr, IntoEnumIterator, IntoStaticStr};
+use strum::{EnumIter, FromRepr, IntoStaticStr};
 
 use crate::CoreAPIInput;
 
