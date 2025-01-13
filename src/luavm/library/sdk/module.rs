@@ -25,7 +25,7 @@ impl LuaModule for ModuleMod {
         module_table.set(
             "get_proc_address",
             lua.create_function(|_, (module, name): (LuaPtr, CString)| unsafe {
-                let module = HMODULE(std::mem::transmute(module.to_u64()));
+                let module = HMODULE(module.to_u64() as _);
                 let p = GetProcAddress(module, PCSTR(name.as_ptr() as *const _));
                 let Some(fun) = p else {
                     return Err(

@@ -35,12 +35,7 @@ fn main_entry() -> anyhow::Result<()> {
     // 加载配置
     config::Config::initialize()?;
 
-    if let Err(e) = logger::init_logger() {
-        utility::show_error_msgbox(
-            &format!("Failed to initialize logger: {:#}", e),
-            "LuaFramework Error",
-        );
-    }
+    logger::init_logger();
 
     // 初始化hook等资源
     game::command::init_game_command()?;

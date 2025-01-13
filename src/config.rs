@@ -24,12 +24,21 @@ pub enum Error {
 pub struct LogConfig {
     #[serde(default = "default_log_level")]
     pub level: luaf_include::LogLevel,
+    #[serde(default = "default_true")]
+    pub log_to_console: bool,
+    #[serde(default = "default_true")]
+    pub log_to_file: bool,
+    #[serde(default = "default_log_file_path")]
+    pub log_file_path: String,
 }
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
             level: default_log_level(),
+            log_to_console: true,
+            log_to_file: true,
+            log_file_path: default_log_file_path(),
         }
     }
 }
@@ -40,6 +49,14 @@ fn default_log_level() -> luaf_include::LogLevel {
 
 fn default_menu_key() -> luaf_include::KeyCode {
     luaf_include::KeyCode::F7
+}
+
+fn default_true() -> bool {
+    true
+}
+
+fn default_log_file_path() -> String {
+    "lua_framework/lua_framework.log".to_string()
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -100,7 +117,7 @@ impl Config {
         let config = load_config()?;
         if let Err(e) = config.try_save_global() {
             crate::utility::show_error_msgbox(
-                &format!("Failed to save global config: {}", e),
+                format!("Failed to save global config: {}", e),
                 "Lua Framework",
             );
         };
@@ -130,7 +147,7 @@ pub struct SaveGuard<'a> {
     save_on_drop: bool,
 }
 
-impl<'a> Drop for SaveGuard<'a> {
+impl Drop for SaveGuard<'_> {
     fn drop(&mut self) {
         if !self.save_on_drop {
             return;
@@ -141,13 +158,13 @@ impl<'a> Drop for SaveGuard<'a> {
     }
 }
 
-impl<'a> AsRef<Config> for SaveGuard<'a> {
+impl AsRef<Config> for SaveGuard<'_> {
     fn as_ref(&self) -> &Config {
         &self.config
     }
 }
 
-impl<'a> std::ops::Deref for SaveGuard<'a> {
+impl std::ops::Deref for SaveGuard<'_> {
     type Target = Config;
 
     fn deref(&self) -> &Self::Target {
@@ -155,7 +172,7 @@ impl<'a> std::ops::Deref for SaveGuard<'a> {
     }
 }
 
-impl<'a> std::ops::DerefMut for SaveGuard<'a> {
+impl std::ops::DerefMut for SaveGuard<'_> {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.config
     }

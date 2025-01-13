@@ -1,4 +1,3 @@
-use colored::{ColoredString, Colorize};
 use mlua::{lua_State, prelude::*};
 
 use crate::error::Error;
@@ -142,13 +141,13 @@ fn get_name(lua: &Lua) -> String {
         .unwrap_or_else(|_| "Script".to_string())
 }
 
-fn get_prefix(lua: &Lua) -> ColoredString {
-    format!("[{}]", get_name(lua)).white()
+fn get_prefix(lua: &Lua) -> String {
+    format!("[{}]", get_name(lua))
 }
 
 fn msg(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
     let args = format_args(lua, msgs)?;
-    crate::utility::show_error_msgbox(&args.join(" "), &get_name(lua));
+    crate::utility::show_error_msgbox(args.join(" "), get_name(lua));
     Ok(())
 }
 
