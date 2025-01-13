@@ -46,6 +46,7 @@ local Input = {
 ---@field to_string fun():string
 ---@field to_bytes_with_nul fun():Bytes
 ---@field to_bytes fun():Bytes
+---@field as_ptr fun():AsLuaPtr
 
 ---@class LuaPtr
 ---@field to_integer fun():integer

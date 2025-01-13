@@ -148,6 +148,9 @@ impl LuaUserData for LuaImgui {
         methods.add_function("calc_current_item_width", |_, ()| unsafe {
             Ok(cimgui::sys::igCalcItemWidth())
         });
+        methods.add_function("get_default_font_size", |_, ()| {
+            Ok(Config::global().ui.font_size)
+        });
 
         methods.add_function(
             "begin_window",
@@ -213,8 +216,71 @@ impl LuaUserData for LuaImgui {
             Ok(())
         });
 
-        methods.add_function("get_default_font_size", |_, ()| {
-            Ok(Config::global().ui.font_size)
+        // table apis
+        methods.add_function(
+            "begin_table",
+            |_,
+             (str_id, column, flags, outer_size, inner_width): (
+                CString,
+                i32,
+                Option<i32>,
+                Option<ImVec2>,
+                Option<f32>,
+            )| unsafe {
+                cimgui::sys::igBeginTable(
+                    str_id.as_ptr(),
+                    column,
+                    flags.unwrap_or(0),
+                    *outer_size.unwrap_or_default(),
+                    inner_width.unwrap_or(0.0),
+                );
+                Ok(())
+            },
+        );
+        methods.add_function("end_table", |_, ()| unsafe {
+            cimgui::sys::igEndTable();
+            Ok(())
+        });
+        methods.add_function(
+            "table_next_row",
+            |_, (row_flags, min_row_height): (Option<i32>, Option<f32>)| unsafe {
+                cimgui::sys::igTableNextRow(row_flags.unwrap_or(0), min_row_height.unwrap_or(0.0));
+                Ok(())
+            },
+        );
+        methods.add_function("table_next_column", |_, ()| unsafe {
+            cimgui::sys::igTableNextColumn();
+            Ok(())
+        });
+        methods.add_function("table_set_column_index", |_, column_index: i32| unsafe {
+            cimgui::sys::igTableSetColumnIndex(column_index);
+            Ok(())
+        });
+        methods.add_function(
+            "table_setup_column",
+            |_,
+             (label, flags, init_width_or_weight, user_id): (
+                CString,
+                Option<i32>,
+                Option<f32>,
+                Option<u32>,
+            )| unsafe {
+                cimgui::sys::igTableSetupColumn(
+                    label.as_ptr(),
+                    flags.unwrap_or(0),
+                    init_width_or_weight.unwrap_or(0.0),
+                    user_id.unwrap_or(0),
+                );
+                Ok(())
+            },
+        );
+        methods.add_function("table_headers_row", |_, ()| unsafe {
+            cimgui::sys::igTableHeadersRow();
+            Ok(())
+        });
+        methods.add_function("table_header", |_, label: CString| unsafe {
+            cimgui::sys::igTableHeader(label.as_ptr());
+            Ok(())
         });
     }
 }

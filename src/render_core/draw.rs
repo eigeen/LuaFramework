@@ -44,23 +44,23 @@ pub fn draw_options_tab(ui: &cimgui::Ui) {
         .display_format("%.1f")
         .auto_select_all(false)
         .build()
+        && font_size > 5.0
+        && font_size <= 100.0
     {
-        if font_size > 5.0 && font_size <= 100.0 {
-            // change config
-            Config::global_mut().ui.font_size = font_size;
+        // change config
+        Config::global_mut().ui.font_size = font_size;
 
-            let render_manager = RenderManager::get_mut();
-            if let Some(default_font) = render_manager
-                .fonts_mut()
-                .get_mut(RenderManager::DEFAULT_FONT_NAME)
-            {
-                default_font.entries.iter_mut().for_each(|entry| {
-                    if let Some(config) = &mut entry.config {
-                        config.size_pixels = font_size;
-                    }
-                });
-                render_manager.reload_fonts();
-            }
+        let render_manager = RenderManager::get_mut();
+        if let Some(default_font) = render_manager
+            .fonts_mut()
+            .get_mut(RenderManager::DEFAULT_FONT_NAME)
+        {
+            default_font.entries.iter_mut().for_each(|entry| {
+                if let Some(config) = &mut entry.config {
+                    config.size_pixels = font_size;
+                }
+            });
+            render_manager.reload_fonts();
         }
     };
 

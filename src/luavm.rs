@@ -7,11 +7,11 @@ use std::{
 
 use library::LuaModule;
 use mlua::prelude::*;
+use parking_lot::{Mutex, ReentrantMutex};
+use rand::RngCore;
 
 use crate::config::Config;
 use crate::error::{Error, Result};
-use parking_lot::{Mutex, ReentrantMutex};
-use rand::RngCore;
 
 mod library;
 
