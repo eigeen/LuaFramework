@@ -167,15 +167,12 @@ impl SingletonManager {
         );
     }
 
+    #[rustfmt::skip]
     fn new() -> Self {
         let mut defs = HashMap::new();
         Self::set_relative_static_def(&mut defs, "sMhKeyboard", "48 ?? ?? ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00", 7);
-        Self::set_relative_static_def(
-            &mut defs,
-            "sMhSteamController",
-            "48 8B D9 45 33 C0 48 8B 0D ?? ?? ?? ?? 33 D2 E8 ?? ?? ?? ?? F3",
-            9,
-        );
+        Self::set_relative_static_def(&mut defs, "sMhSteamController", "48 8B D9 45 33 C0 48 8B 0D ?? ?? ?? ?? 33 D2 E8 ?? ?? ?? ?? F3", 9);
+        Self::set_relative_static_def(&mut defs, "Static:GameRevisionStr", "48 83 EC 48 48 8B 05 ? ? ? ? 4C 8D 0D ? ? ? ? BA 0A 00 00 00", 7);
 
         Self {
             singletons: Mutex::new(HashMap::new()),

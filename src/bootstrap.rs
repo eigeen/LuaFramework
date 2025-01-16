@@ -62,8 +62,25 @@ pub fn setup() -> Result<(), Error> {
             })?;
 
             log::info!("LuaFramework initialized.");
+
+            // 隐藏前台控制台窗口，防止分辨率问题
+            if let Err(e) = hide_console_window() {
+                log::warn!("Failed to hide console window: {}", e);
+            }
+
             Ok(())
         }));
     }
+    Ok(())
+}
+
+/// 隐藏前台控制台窗口
+fn hide_console_window() -> Result<(), String> {
+    let is_foreground = crate::utility::is_game_foreground().map_err(|e| e.to_string())?;
+    if is_foreground {
+        return Ok(());
+    }
+
+    crate::utility::set_game_foreground();
     Ok(())
 }

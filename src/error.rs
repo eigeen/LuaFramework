@@ -44,6 +44,8 @@ pub enum Error {
     PathNotAllowed(String),
     #[error("Proc address '{0}' not found")]
     ProcAddressNotFound(String),
+    #[error("Game window not found")]
+    GameWindowNotFound,
 }
 
 #[derive(Debug, Clone)]
