@@ -9,7 +9,7 @@ use crate::{
     memory::MemoryUtils,
 };
 
-use super::{luaptr::LuaPtr, LuaModule};
+use super::{LuaModule, luaptr::LuaPtr};
 
 pub struct MemoryModule;
 
@@ -92,11 +92,12 @@ impl LuaModule for MemoryModule {
             lua.create_function(|lua, ptr: LuaPtr| {
                 let patch_table = lua.globals().get::<LuaTable>("_patches")?;
                 let find = patch_table.sequence_values().find(|v: &LuaResult<LuaPtr>| {
-                    if let Ok(v) = v {
-                        if v == &ptr {
-                            return true;
-                        }
+                    if let Ok(v) = v
+                        && v == &ptr
+                    {
+                        return true;
                     }
+
                     false
                 });
                 if find.is_none() {
@@ -216,14 +217,14 @@ fn parse_record_args(lua: &Lua, args: mlua::Variadic<LuaValue>) -> Result<Addres
         let mut iter = args.into_iter();
         let name = iter
             .next()
-            .and_then(|v| v.as_string_lossy())
+            .and_then(|v| v.as_string().map(|v| v.to_string_lossy()))
             .ok_or(Error::InvalidValue(
                 "record name:string at #1",
                 "".to_string(),
             ))?;
         let pattern = iter
             .next()
-            .and_then(|v| v.as_string_lossy())
+            .and_then(|v| v.as_string().map(|v| v.to_string_lossy()))
             .ok_or(Error::InvalidValue(
                 "record pattern:string at #2",
                 "".to_string(),

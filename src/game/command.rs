@@ -15,7 +15,7 @@ unsafe extern "C" fn hooked_function(a1: *const i8) -> i8 {
 
     // 调用原始函数
     let original: Func =
-        std::mem::transmute(static_ref!(HOOK).as_ref().unwrap_unchecked().original());
+        unsafe { std::mem::transmute(static_ref!(HOOK).as_ref().unwrap_unchecked().original()) };
     original(a1)
 }
 

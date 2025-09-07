@@ -42,7 +42,7 @@ impl API {
         }
     }
 
-    pub fn functions(&self) -> CoreFunctions {
+    pub fn functions(&self) -> CoreFunctions<'_> {
         CoreFunctions(unsafe { &*self.param.functions })
     }
 
@@ -51,11 +51,11 @@ impl API {
         (self.param.log)(level, msg_bytes.as_ptr(), msg_bytes.len() as u32)
     }
 
-    pub fn lua(&self) -> LuaFunctions {
+    pub fn lua(&self) -> LuaFunctions<'_> {
         LuaFunctions(unsafe { &*self.param.lua })
     }
 
-    pub fn input(&self) -> input::Input {
+    pub fn input(&self) -> input::Input<'_> {
         input::Input(unsafe { &*self.param.input })
     }
 }

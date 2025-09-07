@@ -206,11 +206,11 @@ pub enum KeyCode {
 pub struct Input<'a>(pub &'a CoreAPIInput);
 
 impl Input<'_> {
-    pub fn keyboard(&self) -> InputKeyboard {
+    pub fn keyboard(&self) -> InputKeyboard<'_> {
         InputKeyboard(self.0)
     }
 
-    pub fn controller(&self) -> InputController {
+    pub fn controller(&self) -> InputController<'_> {
         InputController(self.0)
     }
 }

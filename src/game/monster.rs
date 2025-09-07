@@ -16,14 +16,20 @@ type DtorFn = unsafe extern "C" fn(*const c_void);
 unsafe extern "C" fn ctor_hook(monster: *const c_void, type_id: i32, type_sub_id: i32) {
     MONSTERS.lock().push(monster as usize);
 
-    let original: CtorFn = std::mem::transmute(static_ref!(CTOR_HOOK).as_ref().unwrap().original());
-    original(monster, type_id, type_sub_id);
+    unsafe {
+        let original: CtorFn =
+            std::mem::transmute(static_ref!(CTOR_HOOK).as_ref().unwrap().original());
+        original(monster, type_id, type_sub_id);
+    }
 }
 unsafe extern "C" fn dtor_hook(monster: *const c_void) {
     MONSTERS.lock().retain(|m| *m != monster as usize);
 
-    let original: DtorFn = std::mem::transmute(static_ref!(DTOR_HOOK).as_ref().unwrap().original());
-    original(monster);
+    unsafe {
+        let original: DtorFn =
+            std::mem::transmute(static_ref!(DTOR_HOOK).as_ref().unwrap().original());
+        original(monster);
+    }
 }
 
 pub fn init_hooks() -> Result<(), Error> {

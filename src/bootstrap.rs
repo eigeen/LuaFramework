@@ -11,8 +11,10 @@ static mut ON_POST_MH_MAIN_CTOR_CALLBACK: Option<
 > = None;
 
 unsafe extern "C" fn mh_main_ctor_hooked(_ctx: &mut safetyhook::mid_hook::Context) {
-    if let Some(on_post) = static_mut!(ON_POST_MH_MAIN_CTOR_CALLBACK).take() {
-        if let Err(e) = on_post() {
+    unsafe {
+        if let Some(on_post) = static_mut!(ON_POST_MH_MAIN_CTOR_CALLBACK).take()
+            && let Err(e) = on_post()
+        {
             log::error!("Failed to run bootstrap callback: {}", e)
         };
     }

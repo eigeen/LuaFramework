@@ -6,11 +6,11 @@ use luaf_include::{
 };
 use parking_lot::Mutex;
 use windows::{
-    core::{s, PCWSTR},
     Win32::{
         Foundation::HMODULE,
         System::LibraryLoader::{GetProcAddress, LoadLibraryW},
     },
+    core::{PCWSTR, s},
 };
 
 use crate::{
@@ -92,26 +92,26 @@ impl CoreAPI {
             if !path.is_file() {
                 continue;
             }
-            if let Some(ext) = path.extension() {
-                if ext == "dll" {
-                    stat.0 += 1;
+            if let Some(ext) = path.extension()
+                && ext == "dll"
+            {
+                stat.0 += 1;
 
-                    match Self::init_core_extension(&path) {
-                        Ok(extension) => {
-                            log::info!("Extension loaded: {}", extension.name);
-                            self.inner.lock().extensions.push(extension);
+                match Self::init_core_extension(&path) {
+                    Ok(extension) => {
+                        log::info!("Extension loaded: {}", extension.name);
+                        self.inner.lock().extensions.push(extension);
 
-                            stat.1 += 1;
-                        }
-                        Err(e) => log::error!(
-                            "Failed to load extension {}: {}",
-                            path.file_stem()
-                                .unwrap_or_default()
-                                .to_str()
-                                .unwrap_or_default(),
-                            e
-                        ),
+                        stat.1 += 1;
                     }
+                    Err(e) => log::error!(
+                        "Failed to load extension {}: {}",
+                        path.file_stem()
+                            .unwrap_or_default()
+                            .to_str()
+                            .unwrap_or_default(),
+                        e
+                    ),
                 }
             }
         }

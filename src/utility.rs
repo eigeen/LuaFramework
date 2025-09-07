@@ -5,8 +5,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     FindWindowW, GetForegroundWindow, SetForegroundWindow,
 };
 use windows::{
+    Win32::UI::WindowsAndMessaging::{MB_ICONERROR, MessageBoxW},
     core::PCWSTR,
-    Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR},
 };
 
 /// 将字符串转换为 UTF16-LE 字节数组，有 \0 结尾
@@ -88,6 +88,7 @@ macro_rules! static_ref {
 #[macro_export]
 macro_rules! static_mut {
     ($name:ident) => {
-        &mut *&raw mut $name
+        // unsafe { &mut *&raw mut $name }
+        &mut *std::ptr::addr_of_mut!($name)
     };
 }

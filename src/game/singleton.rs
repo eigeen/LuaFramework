@@ -24,13 +24,13 @@ static mut SINGLETONS_TEMP: LazyCell<RefCell<HashSet<usize>>> =
 type FuncType = extern "C" fn(*const c_void) -> *const c_void;
 
 unsafe extern "C" fn csystem_ctor_hooked(instance: *const c_void) -> *const c_void {
-    static_ref!(SINGLETONS_TEMP)
+unsafe {    static_ref!(SINGLETONS_TEMP)
         .borrow_mut()
         .insert(instance as usize);
 
     let hook = &mut *addr_of_mut!(HOOK);
     let original: FuncType = std::mem::transmute(hook.as_ref().unwrap().original());
-    original(instance)
+    original(instance)}
 }
 
 pub struct SingletonManager {

@@ -36,7 +36,7 @@ impl FromLua for LuaVMId {
 
 impl LuaVMId {
     fn new() -> Self {
-        Self(rand::thread_rng().next_u32())
+        Self(rand::rng().next_u32())
     }
 }
 

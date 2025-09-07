@@ -100,11 +100,12 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
         return;
     };
 
-    if ui.button("Reload All") {
-        if let Err(e) = LuaVMManager::instance().reload_physical_vms() {
-            log::error!("Failed to reload all scripts: {}", e);
-        }
+    if ui.button("Reload All")
+        && let Err(e) = LuaVMManager::instance().reload_physical_vms()
+    {
+        log::error!("Failed to reload all scripts: {}", e);
     }
+
     ui.same_line_with_spacing(0.0, 5.0);
     if ui.button("Open Folder") {
         if let Ok(abs_path) = std::fs::canonicalize(LuaVMManager::LUA_SCRIPTS_DIR) {
@@ -170,10 +171,8 @@ fn draw_script_manager_tab(ui: &cimgui::Ui) {
         Ok(())
     });
 
-    if changed {
-        if let Err(e) = LuaVMManager::instance().reload_physical_vms() {
-            log::error!("Failed to reload all scripts: {}", e);
-        }
+    if changed && let Err(e) = LuaVMManager::instance().reload_physical_vms() {
+        log::error!("Failed to reload all scripts: {}", e);
     }
 }
 

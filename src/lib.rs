@@ -1,8 +1,11 @@
 use std::sync::Once;
 
-use windows::Win32::{
-    Foundation::{BOOL, TRUE},
-    System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
+use windows::{
+    Win32::{
+        Foundation::TRUE,
+        System::SystemServices::{DLL_PROCESS_ATTACH, DLL_PROCESS_DETACH},
+    },
+    core::BOOL,
 };
 
 static MAIN_THREAD_ONCE: Once = Once::new();
@@ -49,7 +52,7 @@ fn main_entry() -> anyhow::Result<()> {
     Ok(())
 }
 
-#[no_mangle]
+#[unsafe(no_mangle)]
 #[allow(non_snake_case)]
 extern "system" fn DllMain(_: usize, call_reason: u32, _: usize) -> BOOL {
     match call_reason {

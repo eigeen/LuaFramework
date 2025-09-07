@@ -1,7 +1,8 @@
 [package]
 name = "lua-framework"
-version = "0.3.1"
-edition = "2021"
+version = "0.4.0"
+edition = "2024"
+rust-version = "1.88"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -10,15 +11,15 @@ resolver = "2"
 members = ["luaf-include", "luaf-libffi"]
 
 [workspace.dependencies]
-mlua = { version = "0.10", features = ["luajit", "vendored"] }
+mlua = { version = "0.11", features = ["luajit", "vendored"] }
 log = { version = "0.4", features = ["std"] }
 anyhow = "1.0"
 thiserror = "2.0"
 parking_lot = { version = "0.12", features = ["arc_lock"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
-rand = "0.8"
-strum = { version = "0.26", features = ["derive"] }
+rand = "0.9"
+strum = { version = "0.27", features = ["derive"] }
 
 [lib]
 crate-type = ["cdylib"]
@@ -36,7 +37,7 @@ safetyhook = { path = "../../safetyhook-pure-rs" }
 cimgui = { path = "../../cimgui-linking-rs/cimgui" }
 # cimgui = { git = "https://github.com/eigeen/cimgui-rs.git" }
 
-windows = { version = "0.59", features = [
+windows = { version = "0.62", features = [
     "Win32_System_SystemServices",
     "Win32_System_LibraryLoader",
     "Win32_UI_WindowsAndMessaging",
@@ -46,7 +47,7 @@ windows = { version = "0.59", features = [
     "Win32_System_Memory"
 ] }
 # frida-gum 动态Hook
-frida-gum = { version = "0.15", features = [
+frida-gum = { version = "0.17", features = [
     "auto-download",
     "invocation-listener",
 ] }
@@ -59,15 +60,15 @@ serde.workspace = true
 rand.workspace = true
 serde_json.workspace = true
 strum.workspace = true
-toml = "0.8"
-bitflags = "2.6"
+toml = "0.9"
+bitflags = "2.9"
 semver = "1.0"
 chrono = "0.4"
-colored = "2.2"
+colored = "3.0"
 
 
 [build-dependencies]
 winres = "0.1"
 
 [dev-dependencies]
-env_logger = "0.11.5"
+env_logger = "0.11"

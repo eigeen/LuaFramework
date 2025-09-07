@@ -1,8 +1,8 @@
 use std::{collections::HashMap, ffi::c_void, sync::LazyLock};
 
 use frida_gum::{
-    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener, ProbeListener},
     Gum, NativePointer,
+    interceptor::{Interceptor, InvocationContext, InvocationListener, Listener, ProbeListener},
 };
 use inline::InlineInterceptor;
 use mid::MidInterceptor;
@@ -125,11 +125,11 @@ impl FromLua for InterceptorHandle {
 
 impl InterceptorHandle {
     fn new_inline() -> Self {
-        InterceptorHandle::Inline(rand::thread_rng().next_u32())
+        InterceptorHandle::Inline(rand::rng().next_u32())
     }
 
     fn new_mid() -> Self {
-        InterceptorHandle::Mid(rand::thread_rng().next_u32())
+        InterceptorHandle::Mid(rand::rng().next_u32())
     }
 
     fn id(&self) -> u32 {
@@ -478,19 +478,19 @@ impl LuaUserData for CpuContextArgs<'_> {
                             return Err(LuaError::external(format!(
                                 "unknown register name: {}",
                                 key
-                            )))
+                            )));
                         }
                     },
                     IndexKey::Int(_) => {
                         return Err(LuaError::external(
                             "number index is not allowed in attach_instruction",
-                        ))
+                        ));
                     }
                     IndexKey::Other(key) => {
                         return Err(LuaError::external(format!(
                             "'{:?}' is invalid index in attach_instruction",
                             key
-                        )))
+                        )));
                     }
                 };
                 Ok(())

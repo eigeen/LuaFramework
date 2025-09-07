@@ -1,11 +1,11 @@
 use crate::error::Error;
-use crate::luavm::library::sdk::luaptr::LuaPtr;
 use crate::luavm::library::LuaModule;
+use crate::luavm::library::sdk::luaptr::LuaPtr;
 use mlua::{ExternalError, Lua, Table};
 use std::ffi::CString;
-use windows::core::{PCSTR, PCWSTR};
 use windows::Win32::Foundation::HMODULE;
 use windows::Win32::System::LibraryLoader::{GetModuleHandleW, GetProcAddress};
+use windows::core::{PCSTR, PCWSTR};
 
 pub struct ModuleMod;
 
@@ -33,7 +33,7 @@ impl LuaModule for ModuleMod {
                             .into_lua_err(),
                     );
                 };
-                Ok(LuaPtr::new(fun as u64))
+                Ok(LuaPtr::new(fun as usize as u64))
             })?,
         )?;
 

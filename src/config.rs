@@ -76,18 +76,10 @@ impl Default for UIConfig {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct ScriptsConfig {
     #[serde(default)]
     pub disabled_scripts: Vec<String>,
-}
-
-impl Default for ScriptsConfig {
-    fn default() -> Self {
-        Self {
-            disabled_scripts: vec![],
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

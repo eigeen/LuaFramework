@@ -183,11 +183,13 @@ fn trace(lua: &Lua, msgs: mlua::Variadic<LuaValue>) -> LuaResult<()> {
 
 #[allow(non_snake_case)]
 unsafe extern "C-unwind" fn lua_get_state_ptr(L: *mut lua_State) -> std::ffi::c_int {
-    // lua_State 指针作为返回值 u64 类型
-    let lua_state_ptr: i64 = L as i64;
-    mlua::ffi::lua_pushinteger(L, lua_state_ptr);
+    unsafe {
+        // lua_State 指针作为返回值 u64 类型
+        let lua_state_ptr: i64 = L as i64;
+        mlua::ffi::lua_pushinteger(L, lua_state_ptr);
 
-    1
+        1
+    }
 }
 
 fn require_version(_lua: &Lua, require_version: String) -> LuaResult<()> {

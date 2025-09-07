@@ -1,7 +1,7 @@
 use std::fs;
 use std::io::Write;
-use std::sync::atomic::{self, AtomicBool};
 use std::sync::LazyLock;
+use std::sync::atomic::{self, AtomicBool};
 
 use colored::Colorize;
 use log::{Metadata, Record};
@@ -10,9 +10,9 @@ use parking_lot::Mutex;
 use windows::Win32::{
     Foundation::HANDLE,
     System::Console::{
-        AllocConsole, GetConsoleWindow, GetStdHandle, SetConsoleMode, WriteConsoleW,
-        ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, ENABLE_WRAP_AT_EOL_OUTPUT,
-        STD_OUTPUT_HANDLE,
+        AllocConsole, ENABLE_PROCESSED_OUTPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING,
+        ENABLE_WRAP_AT_EOL_OUTPUT, GetConsoleWindow, GetStdHandle, STD_OUTPUT_HANDLE,
+        SetConsoleMode, WriteConsoleW,
     },
 };
 
@@ -92,42 +92,42 @@ impl log::Log for Logger {
         let now = chrono::Local::now();
         let time_str = format!("[ {} ]", now.format("%Y-%m-%d %H:%M:%S"));
 
-        if self.log_config.log_to_console {
-            if let Some(stdout) = self.output.lock().stdout {
-                // colored
-                let msg_str_colored = match record.level() {
-                    log::Level::Error => msg_str.red().bold(),
-                    log::Level::Warn => msg_str.yellow(),
-                    log::Level::Info => msg_str.white(),
-                    log::Level::Debug => msg_str.dimmed(), // 浅色
-                    log::Level::Trace => msg_str.dimmed(), // 浅色
-                };
-                let msg_colored = format!("{} {}\n", time_str.green(), msg_str_colored);
+        if self.log_config.log_to_console
+            && let Some(stdout) = self.output.lock().stdout
+        {
+            // colored
+            let msg_str_colored = match record.level() {
+                log::Level::Error => msg_str.red().bold(),
+                log::Level::Warn => msg_str.yellow(),
+                log::Level::Info => msg_str.white(),
+                log::Level::Debug => msg_str.dimmed(), // 浅色
+                log::Level::Trace => msg_str.dimmed(), // 浅色
+            };
+            let msg_colored = format!("{} {}\n", time_str.green(), msg_str_colored);
 
-                unsafe {
-                    let _ = WriteConsoleW(
-                        stdout,
-                        &crate::utility::to_wstring_bytes_with_nul(&msg_colored),
-                        None,
-                        None,
-                    );
-                }
+            unsafe {
+                let _ = WriteConsoleW(
+                    stdout,
+                    &crate::utility::to_wstring_bytes_with_nul(&msg_colored),
+                    None,
+                    None,
+                );
             }
         }
 
-        if self.log_config.log_to_file {
-            if let Some(file) = self.output.lock().file.as_mut() {
-                let msg = format!("{} {}", time_str, msg_str);
-                let _ = writeln!(file, "{}", msg);
-            }
+        if self.log_config.log_to_file
+            && let Some(file) = self.output.lock().file.as_mut()
+        {
+            let msg = format!("{} {}", time_str, msg_str);
+            let _ = writeln!(file, "{}", msg);
         }
     }
 
     fn flush(&self) {
-        if self.log_config.log_to_file {
-            if let Some(file) = self.output.lock().file.as_mut() {
-                let _ = file.sync_all();
-            }
+        if self.log_config.log_to_file
+            && let Some(file) = self.output.lock().file.as_mut()
+        {
+            let _ = file.sync_all();
         }
     }
 }

@@ -1,8 +1,4 @@
-#![allow(
-    clippy::missing_safety_doc,
-    clippy::missing_transmute_annotations,
-    clippy::transmute_float_to_int
-)]
+#![allow(clippy::missing_safety_doc, clippy::missing_transmute_annotations)]
 #![allow(clippy::wrong_transmute)]
 
 use luaf_include::{CoreAPIParam, API};

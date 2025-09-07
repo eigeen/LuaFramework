@@ -1,8 +1,4 @@
-#![allow(
-    clippy::missing_transmute_annotations,
-    clippy::transmute_float_to_int,
-    clippy::transmute_int_to_float
-)]
+#![allow(unnecessary_transmutes, clippy::missing_transmute_annotations)]
 
 use std::ffi::c_void;
 
@@ -11,7 +7,7 @@ use mlua::prelude::*;
 use crate::{
     error::Error,
     extension::CoreAPI,
-    luavm::library::{utility::UtilityModule, LuaModule},
+    luavm::library::{LuaModule, utility::UtilityModule},
     memory::MemoryUtils,
     static_mut,
 };
@@ -43,13 +39,12 @@ impl LuaModule for FFICallModule {
 fn acquire_ffi_functions() {
     unsafe {
         let fun = static_mut!(CALL_NATIVE_FUNCTION);
-        if fun.is_none() {
-            if let Some(call_c_function) =
+        if fun.is_none()
+            && let Some(call_c_function) =
                 CoreAPI::instance().get_function("libffi::call_c_function")
-            {
-                *fun = Some(std::mem::transmute(call_c_function));
-            };
-        }
+        {
+            *fun = Some(std::mem::transmute(call_c_function));
+        };
     }
 }
 
@@ -329,7 +324,7 @@ impl FromLua for Argument {
                 Argument::String(string.to_bytes_with_nul())
             }
             _ => {
-                return Err(Error::InvalidValue("argument type name", arg_type_name).into_lua_err())
+                return Err(Error::InvalidValue("argument type name", arg_type_name).into_lua_err());
             }
         };
 

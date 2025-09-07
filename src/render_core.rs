@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use std::path::PathBuf;
 
 use anyhow::Context as _;
-use cimgui::{sys as imgui_sys, FontConfig, FontGlyphRanges, FontId, FontSource, Io};
 use cimgui::{Context, DrawData, WindowFocusedFlags, WindowHoveredFlags};
+use cimgui::{FontConfig, FontGlyphRanges, FontId, FontSource, Io, sys as imgui_sys};
 use log::{debug, error};
 use luaf_include::KeyCode;
 
@@ -67,13 +67,11 @@ impl RenderManager {
     pub fn get_mut() -> &'static mut RenderManager {
         static mut INSTANCE: Option<RenderManager> = None;
 
-        unsafe {
-            let this = static_mut!(INSTANCE);
-            if this.is_none() {
-                *this = Some(RenderManager::new());
-            }
-            this.as_mut().unwrap()
+        let this = unsafe { static_mut!(INSTANCE) };
+        if this.is_none() {
+            *this = Some(RenderManager::new());
         }
+        this.as_mut().unwrap()
     }
 
     pub fn get_context() -> &'static mut Context {
@@ -205,20 +203,11 @@ pub struct FontRegisterEntry {
     pub config: Option<FontConfig>,
 }
 
+#[derive(Default)]
 pub struct UIContext {
     pub need_reload_fonts: bool,
     pub need_invalidate_devices: bool,
     pub change_menu_key: bool,
-}
-
-impl Default for UIContext {
-    fn default() -> Self {
-        Self {
-            need_reload_fonts: false,
-            need_invalidate_devices: false,
-            change_menu_key: false,
-        }
-    }
 }
 
 pub unsafe extern "C" fn imgui_core_initialize(
@@ -227,7 +216,8 @@ pub unsafe extern "C" fn imgui_core_initialize(
     d3d12: bool,
 ) -> *mut imgui_sys::ImGuiContext {
     // 创建 Context
-    let context = static_mut!(IMGUI_CONTEXT);
+    // let context = static_mut!(IMGUI_CONTEXT);
+    let context = unsafe { static_mut!(IMGUI_CONTEXT) };
     if context.is_none() {
         *context = Some(Context::create());
     }
@@ -258,7 +248,7 @@ pub unsafe extern "C" fn imgui_core_initialize(
         render_manager.viewport_size, render_manager.window_size, d3d12,
     );
 
-    imgui_sys::igGetCurrentContext()
+    unsafe { imgui_sys::igGetCurrentContext() }
 }
 
 pub unsafe extern "C" fn imgui_core_pre_render() {
@@ -286,57 +276,59 @@ pub unsafe extern "C" fn imgui_core_pre_render() {
 }
 
 pub unsafe extern "C" fn imgui_core_render() -> *mut imgui_sys::ImDrawData {
-    let render_manager = RenderManager::get_mut();
+    unsafe {
+        let render_manager = RenderManager::get_mut();
 
-    // 处理快捷键显示切换
-    if !render_manager.ui_context.change_menu_key
-        && Input::instance()
-            .keyboard()
-            .is_pressed(render_manager.menu_key)
-    {
-        render_manager.show = !render_manager.show;
-    };
+        // 处理快捷键显示切换
+        if !render_manager.ui_context.change_menu_key
+            && Input::instance()
+                .keyboard()
+                .is_pressed(render_manager.menu_key)
+        {
+            render_manager.show = !render_manager.show;
+        };
 
-    let ctx = static_mut!(IMGUI_CONTEXT).as_mut().unwrap();
-    // Frame start
-    let ui = ctx.new_frame();
+        let ctx = static_mut!(IMGUI_CONTEXT).as_mut().unwrap();
+        // Frame start
+        let ui = ctx.new_frame();
 
-    // 处理指针显示
-    let any_focusing = ui.is_window_focused_with_flags(WindowFocusedFlags::ANY_WINDOW);
-    let any_hovering = ui.is_window_hovered_with_flags(WindowHoveredFlags::ANY_WINDOW);
-    // ctx.io_mut().mouse_draw_cursor = any_focusing || any_hovering;
-    {
-        let io = &mut *(imgui_sys::igGetIO() as *mut Io);
-        io.mouse_draw_cursor = any_focusing || any_hovering;
+        // 处理指针显示
+        let any_focusing = ui.is_window_focused_with_flags(WindowFocusedFlags::ANY_WINDOW);
+        let any_hovering = ui.is_window_hovered_with_flags(WindowHoveredFlags::ANY_WINDOW);
+        // ctx.io_mut().mouse_draw_cursor = any_focusing || any_hovering;
+        {
+            let io = &mut *(imgui_sys::igGetIO() as *mut Io);
+            io.mouse_draw_cursor = any_focusing || any_hovering;
+        }
+
+        if render_manager.show {
+            // 设置默认字体
+            let mut has_default_font = false;
+            if let Some(font_id) = render_manager.get_font(RenderManager::DEFAULT_FONT_NAME) {
+                imgui_sys::igPushFont(font_id.0 as *mut imgui_sys::ImFont);
+                has_default_font = true;
+            }
+
+            // 基础窗口
+            draw::draw_basic_window(ui, |_ui| {
+                // 调用外部渲染函数 on_imgui
+                render_manager.render_imgui();
+            });
+
+            if has_default_font {
+                imgui_sys::igPopFont();
+            }
+        };
+
+        // 调用外部渲染函数 on_draw
+        let ctx_ptr = imgui_sys::igGetCurrentContext();
+        render_manager.render_draw(ctx_ptr);
+
+        ui.end_frame_early();
+
+        // 渲染并返回绘制数据
+        ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData
     }
-
-    if render_manager.show {
-        // 设置默认字体
-        let mut has_default_font = false;
-        if let Some(font_id) = render_manager.get_font(RenderManager::DEFAULT_FONT_NAME) {
-            imgui_sys::igPushFont(font_id.0 as *mut imgui_sys::ImFont);
-            has_default_font = true;
-        }
-
-        // 基础窗口
-        draw::draw_basic_window(ui, |_ui| {
-            // 调用外部渲染函数 on_imgui
-            render_manager.render_imgui();
-        });
-
-        if has_default_font {
-            imgui_sys::igPopFont();
-        }
-    };
-
-    // 调用外部渲染函数 on_draw
-    let ctx_ptr = imgui_sys::igGetCurrentContext();
-    render_manager.render_draw(ctx_ptr);
-
-    ui.end_frame_early();
-
-    // 渲染并返回绘制数据
-    ctx.render() as *const DrawData as *mut imgui_sys::ImDrawData
 }
 
 fn get_invalidate_device_fn() -> Option<InvalidateDeviceFn> {

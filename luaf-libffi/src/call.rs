@@ -166,8 +166,9 @@ pub unsafe extern "C" fn CallNativeFunction(
 }
 
 #[cfg(test)]
-#[allow(clippy::transmute_int_to_float)]
+#[allow(unnecessary_transmutes)]
 mod tests {
+
     use super::*;
     use libffi::raw::{ffi_abi_FFI_GNUW64, ffi_abi_FFI_WIN64};
 
