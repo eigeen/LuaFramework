@@ -34,15 +34,15 @@ if os.path.exists("dist"):
 os.makedirs("dist")
 
 # run build command
-os.system("cd d3d11 && xmake build -y")
+os.system("cd hid && xmake build -y")
 os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 file_src_dst = [
     # loader
     {
         "type": "file",
-        "src": "d3d11/build/windows/x64/release/d3d11.dll",
-        "dst": "d3d11.dll",
+        "src": "hid/build/windows/x64/release/hid.dll",
+        "dst": "hid.dll",
     },
     # core files
     {

@@ -1,9 +1,8 @@
-set_project("d3d11_forward")
-
+set_project("hid_forward")
 
 add_requires("wil")
 
-target("d3d11")
+target("hid")
     set_kind("shared")
     set_languages("c++17")
 

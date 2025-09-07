@@ -4,12 +4,12 @@ import shutil
 
 game_root = pathlib.Path("C:/Program Files (x86)/Steam/steamapps/common/Monster Hunter World")
 
-os.system("cd d3d11 && xmake build -y")
+os.system("cd hid && xmake build -y")
 os.system("cargo build --release --package lua-framework --package luaf-libffi")
 
 shutil.copy(
-    "d3d11/build/windows/x64/release/d3d11.dll",
-    game_root.joinpath("d3d11.dll"),
+    "hid/build/windows/x64/release/hid.dll",
+    game_root.joinpath("hid.dll"),
 )
 shutil.copy(
     "target/release/lua_framework.dll",
