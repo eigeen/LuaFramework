@@ -35,7 +35,7 @@ impl LuaModule for UtilityModule {
                             "integer or number",
                             other.type_name().to_string(),
                         )
-                        .into_lua_err())
+                        .into_lua_err());
                     }
                 };
 
@@ -95,13 +95,13 @@ impl UtilityModule {
     pub fn read_uint64_value(tbl: &LuaTable) -> LuaResult<u64> {
         // 接收 UInt64 table
         let mut is_uint64 = false;
-        if let Some(mt) = tbl.metatable() {
-            if let Ok(ty) = mt.get::<String>(LuaMetaMethod::Type.name()) {
-                if ty == "UInt64" {
-                    is_uint64 = true;
-                }
-            }
+        if let Some(mt) = tbl.metatable()
+            && let Ok(ty) = mt.get::<String>(LuaMetaMethod::Type.name())
+            && ty == "UInt64"
+        {
+            is_uint64 = true;
         }
+
         if !is_uint64 {
             return Err(Error::InvalidValue("UInt64 table", tbl.to_string()?).into_lua_err());
         }

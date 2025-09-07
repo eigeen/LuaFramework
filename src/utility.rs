@@ -53,7 +53,7 @@ pub fn set_game_foreground() -> bool {
 /// 获取游戏版本号
 pub fn get_game_revision() -> Option<u32> {
     let singleton_manager = crate::game::singleton::SingletonManager::instance();
-    let revision_ptr = singleton_manager.get_ptr("Static:GameRevisionStr")?;
+    let revision_ptr = singleton_manager.get_ptr("static:GameRevisionStr")?;
     let revision_str = unsafe { CStr::from_ptr(revision_ptr as *const _) };
 
     revision_str.to_str().ok()?.parse::<u32>().ok()

@@ -24,13 +24,15 @@ static mut SINGLETONS_TEMP: LazyCell<RefCell<HashSet<usize>>> =
 type FuncType = extern "C" fn(*const c_void) -> *const c_void;
 
 unsafe extern "C" fn csystem_ctor_hooked(instance: *const c_void) -> *const c_void {
-unsafe {    static_ref!(SINGLETONS_TEMP)
-        .borrow_mut()
-        .insert(instance as usize);
+    unsafe {
+        static_ref!(SINGLETONS_TEMP)
+            .borrow_mut()
+            .insert(instance as usize);
 
-    let hook = &mut *addr_of_mut!(HOOK);
-    let original: FuncType = std::mem::transmute(hook.as_ref().unwrap().original());
-    original(instance)}
+        let hook = &mut *addr_of_mut!(HOOK);
+        let original: FuncType = std::mem::transmute(hook.as_ref().unwrap().original());
+        original(instance)
+    }
 }
 
 pub struct SingletonManager {
@@ -172,7 +174,9 @@ impl SingletonManager {
         let mut defs = HashMap::new();
         Self::set_relative_static_def(&mut defs, "sMhKeyboard", "48 ?? ?? ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00 E8 ?? ?? ?? ?? 84 C0 75 ?? 48 8B 0D ?? ?? ?? ?? BA 15 00 00 00", 7);
         Self::set_relative_static_def(&mut defs, "sMhSteamController", "48 8B D9 45 33 C0 48 8B 0D ?? ?? ?? ?? 33 D2 E8 ?? ?? ?? ?? F3", 9);
-        Self::set_relative_static_def(&mut defs, "Static:GameRevisionStr", "48 83 EC 48 48 8B 05 ? ? ? ? 4C 8D 0D ? ? ? ? BA 0A 00 00 00", 7);
+        Self::set_relative_static_def(&mut defs, "sMhNetwork", "48 83 EC ?? E8 17 00 00 00 48 ?? ?? ?? ?? ?? ?? 48 ?? ?? ?? E9", 12);
+        Self::set_relative_static_def(&mut defs, "sShareRecord", "89 43 ?? 45 85 C9 74 ?? 0F B6 ?? ?? 44 8B C0 48", 18);
+        Self::set_relative_static_def(&mut defs, "static:GameRevisionStr", "48 83 EC 48 48 8B 05 ? ? ? ? 4C 8D 0D ? ? ? ? BA 0A 00 00 00", 7);
 
         Self {
             singletons: Mutex::new(HashMap::new()),
