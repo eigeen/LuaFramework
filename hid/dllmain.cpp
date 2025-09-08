@@ -86,7 +86,31 @@ BOOL WINAPI DllMain(HINSTANCE hinstDLL, DWORD fdwReason, LPVOID lpvReserved)
         HMODULE hCore = LoadLibraryW(MODULE_NAME);
         if (!hCore)
         {
-            MessageBoxW(NULL, L"Failed to load lua_framework.dll", L"LuaFramework", MB_ICONERROR);
+            DWORD errorCode = GetLastError();
+            wchar_t* errorMessage = nullptr;
+            
+            // format message
+            FormatMessageW(
+                FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+                NULL,
+                errorCode,
+                MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                (LPWSTR)&errorMessage,
+                0,
+                NULL
+            );
+
+            // build detailed error
+            std::wstring detailedError = L"Failed to load lua_framework.dll\n\n";
+            detailedError += L"Error Code: " + std::to_wstring(errorCode) + L"\n";
+            if (errorMessage) {
+                detailedError += L"Error Message: " + std::wstring(errorMessage);
+                LocalFree(errorMessage);
+            } else {
+                detailedError += L"Error Message: Unknown error";
+            }
+
+            MessageBoxW(NULL, detailedError.c_str(), L"LuaFramework Load Error", MB_ICONERROR);
             return TRUE;
         }
 
