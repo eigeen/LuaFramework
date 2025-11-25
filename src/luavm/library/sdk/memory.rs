@@ -58,6 +58,24 @@ impl LuaModule for MemoryModule {
                 },
             )?,
         )?;
+        // 分配一段填充为0的内存，并返回起始指针
+        memory.set(
+            "malloc",
+            lua.create_function(|_, size: usize| {
+                let address = MemoryAllocManager::instance()
+                    .malloc(size)
+                    .map_err(|e| e.into_lua_err())?;
+                Ok(LuaPtr::new(address as u64))
+            })?,
+        )?;
+        // 释放分配的内存
+        memory.set(
+            "free",
+            lua.create_function(|_, ptr: LuaPtr| {
+                let ok = MemoryAllocManager::instance().free(ptr.to_usize());
+                Ok(ok)
+            })?,
+        )?;
         // 修改内存
         memory.set(
             "patch",
@@ -200,6 +218,12 @@ impl MemoryModule {
 
         Ok(())
     }
+
+    pub fn free_all_allocations() {
+        let alloc_manager = MemoryAllocManager::instance();
+        let mut allocs = alloc_manager.allocs.lock();
+        allocs.clear();
+    }
 }
 
 fn pattern_scan_all(address: usize, size: usize, pattern: &str) -> Result<Vec<usize>> {
@@ -323,4 +347,32 @@ struct MemoryPatch {
     address: usize,
     size: usize,
     backup: Vec<u8>,
+}
+
+#[derive(Default)]
+struct MemoryAllocManager {
+    allocs: Mutex<HashMap<usize, Vec<u8>>>,
+}
+
+impl MemoryAllocManager {
+    pub fn instance() -> &'static Self {
+        static MEMORY_ALLOC_MANAGER: LazyLock<MemoryAllocManager> =
+            LazyLock::new(MemoryAllocManager::default);
+        &MEMORY_ALLOC_MANAGER
+    }
+
+    pub fn malloc(&self, size: usize) -> Result<usize> {
+        if size == 0 {
+            return Err(Error::InvalidValue("size > 0", format!("{}", size)));
+        }
+
+        let mut buffer = vec![0u8; size];
+        let ptr = buffer.as_mut_ptr() as usize;
+        self.allocs.lock().insert(ptr, buffer);
+        Ok(ptr)
+    }
+
+    pub fn free(&self, address: usize) -> bool {
+        self.allocs.lock().remove(&address).is_some()
+    }
 }

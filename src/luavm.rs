@@ -351,6 +351,8 @@ impl Drop for LuaVM {
         if let Err(e) = result {
             log::error!("Failed to restore LuaVM({}) patches: {}", self.name(), e);
         }
+        // 移除内存分配
+        library::sdk::memory::MemoryModule::free_all_allocations();
 
         log::debug!("LuaVM({}) removed", self.name());
     }
