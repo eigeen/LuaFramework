@@ -2,8 +2,8 @@ use std::ffi::c_void;
 
 use mlua::{Lua, Table};
 
-use crate::luavm::library::sdk::luaptr::LuaPtr;
 use crate::luavm::library::LuaModule;
+use crate::luavm::library::sdk::luaptr::LuaPtr;
 
 pub struct MonsterModule;
 

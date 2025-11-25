@@ -1,9 +1,8 @@
 use std::{io::Cursor, slice};
 
 use super::{
-    pattern_scan,
+    MemoryError, pattern_scan,
     windows_util::{self, VirtualProtectGuard},
-    MemoryError,
 };
 
 use windows::Win32::System::Memory::PAGE_EXECUTE_READWRITE;

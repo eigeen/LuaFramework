@@ -28,7 +28,9 @@ pub enum Error {
     LuaVMNotFound,
     #[error("Invalid argument: expected {0}, got {1}")]
     InvalidValue(&'static str, String),
-    #[error("Require LuaFramework version {1}, but current version is {0}, please update LuaFramework or script.")]
+    #[error(
+        "Require LuaFramework version {1}, but current version is {0}, please update LuaFramework or script."
+    )]
     LuaFVersionMismatch(&'static str, String),
     #[error("Failed to initialize core extension: code {0}")]
     InitCoreExtension(i32),

@@ -423,9 +423,11 @@ mod tests {
         let bytes = [0x10, 0x20, 0x30, 0x40, 0x50];
         let pattern = "10 11 12";
 
-        assert!(scan_first_match(Cursor::new(bytes), pattern)
-            .unwrap()
-            .is_none());
+        assert!(
+            scan_first_match(Cursor::new(bytes), pattern)
+                .unwrap()
+                .is_none()
+        );
     }
 
     #[test]
@@ -437,9 +439,11 @@ mod tests {
         bytes.push(0xdd);
         let pattern = "aa bb cc dd";
 
-        assert!(scan_first_match(Cursor::new(bytes), pattern)
-            .unwrap()
-            .is_some())
+        assert!(
+            scan_first_match(Cursor::new(bytes), pattern)
+                .unwrap()
+                .is_some()
+        )
     }
 
     #[test]

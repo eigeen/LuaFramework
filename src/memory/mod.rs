@@ -18,7 +18,9 @@ pub enum MemoryError {
     PagePermNoWrite(usize),
     #[error("No permission to execute at 0x{0:x}")]
     PagePermNoExecute(usize),
-    #[error("Page not committed at 0x{0:x}. You're trying to access memory that hasn't been allocated or initialized.")]
+    #[error(
+        "Page not committed at 0x{0:x}. You're trying to access memory that hasn't been allocated or initialized."
+    )]
     PageNotCommit(usize),
     #[error("VirtualProtect error: {0}")]
     VirtualProtect(windows::core::Error),

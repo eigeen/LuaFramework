@@ -78,8 +78,8 @@ mod tests {
     use std::sync::LazyLock;
 
     use frida_gum::{
-        interceptor::{Interceptor, ProbeListener},
         NativePointer,
+        interceptor::{Interceptor, ProbeListener},
     };
 
     struct MyProbeListener;
